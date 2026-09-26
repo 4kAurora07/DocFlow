@@ -1,0 +1,326 @@
+package com.doseflow.app.ui.settings
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.doseflow.app.platform.util.PowerAndPermissionHelper
+import com.doseflow.app.theme.Dimens
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(
+    modifier: Modifier = Modifier,
+    viewModel: SettingsViewModel = viewModel()
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshStatus()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    var expandedOem by remember { mutableStateOf<String?>(null) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Settings & Diagnostics",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
+            )
+        },
+        modifier = modifier
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            contentPadding = PaddingValues(
+                start = Dimens.SpacingMedium,
+                end = Dimens.SpacingMedium,
+                top = Dimens.SpacingSmall,
+                bottom = 80.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(Dimens.SpacingMedium)
+        ) {
+            // Permission Health
+            item {
+                Text(
+                    text = "System Alarm Permissions",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            item {
+                PermissionStatusCard(
+                    title = "Exact Alarms (SCHEDULE_EXACT_ALARM)",
+                    description = "Enables alarms to fire at exact second intervals even while the phone is locked.",
+                    isGranted = uiState.hasExactAlarmPermission,
+                    actionLabel = "Open Alarm Settings",
+                    onActionClick = { PowerAndPermissionHelper.openExactAlarmSettings(context) }
+                )
+            }
+
+            item {
+                PermissionStatusCard(
+                    title = "Post Notifications (POST_NOTIFICATIONS)",
+                    description = "Allows full-screen and sound notifications with Taken, Snooze, and Skip actions.",
+                    isGranted = uiState.hasNotificationPermission,
+                    actionLabel = "Open Notification Settings",
+                    onActionClick = { PowerAndPermissionHelper.openNotificationSettings(context) }
+                )
+            }
+
+            item {
+                PermissionStatusCard(
+                    title = "Battery Optimization Exemption",
+                    description = "Prevents Android Doze from putting reminder services into deep sleep.",
+                    isGranted = uiState.isIgnoringBatteryOptimizations,
+                    actionLabel = "Request Exemption",
+                    onActionClick = { PowerAndPermissionHelper.requestIgnoreBatteryOptimizations(context) }
+                )
+            }
+
+            // OEM Aggressive Memory Management
+            item {
+                Text(
+                    text = "OEM Background Protection",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = Dimens.SpacingSmall)
+                )
+                Text(
+                    text = "Certain manufacturers aggressively kill background apps. Follow the steps below for your brand to ensure reliable delivery.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+
+            val oemList = listOf(
+                "Samsung (One UI)" to "1. Open Settings -> Battery and device care -> Background usage limits.\n2. Add DoseFlow to 'Never sleeping apps'.\n3. Under Lock screen settings, ensure Notifications are turned On.",
+                "Xiaomi / Redmi / Poco (MIUI / HyperOS)" to "1. Open Settings -> Apps -> Manage Apps -> DoseFlow.\n2. Turn ON 'Autostart'.\n3. Under Battery Saver, select 'No restrictions'.",
+                "OnePlus / Oppo / Realme (OxygenOS / ColorOS)" to "1. Open Settings -> Battery -> App battery management -> DoseFlow.\n2. Turn ON 'Allow background activity' and 'Allow auto-launch'.",
+                "Huawei / Honor (EMUI / MagicOS)" to "1. Open Settings -> Battery -> App launch.\n2. Find DoseFlow, switch to 'Manage manually'.\n3. Enable Auto-launch, Secondary launch, and Run in background."
+            )
+
+            items(oemList.size) { idx ->
+                val (oemName, instructions) = oemList[idx]
+                val isExpanded = expandedOem == oemName
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            expandedOem = if (isExpanded) null else oemName
+                        },
+                    shape = RoundedCornerShape(Dimens.CardCornerRadius),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.padding(Dimens.SpacingMedium)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = oemName,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = if (isExpanded) "Hide" else "Instructions",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        AnimatedVisibility(visible = isExpanded) {
+                            Column(modifier = Modifier.padding(top = Dimens.SpacingSmall)) {
+                                Text(
+                                    text = instructions,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Architecture & Privacy Reassurance
+            item {
+                Text(
+                    text = "Privacy & Local Device Architecture",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = Dimens.SpacingSmall)
+                )
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(Dimens.CardCornerRadius),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(modifier = Modifier.padding(Dimens.SpacingMedium)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(Dimens.SpacingSmall))
+                            Text(
+                                text = "100% Offline & Private",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(Dimens.SpacingSmall))
+                        Text(
+                            text = "DoseFlow operates entirely on this device using local SQLite and Android AlarmManager. No medication schedules, history, or health logs are ever transmitted to any remote servers.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(Dimens.SpacingSmall))
+                        Text(
+                            text = "Device: ${uiState.manufacturer} ${uiState.model} • Android: ${uiState.androidVersion}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermissionStatusCard(
+    title: String,
+    description: String,
+    isGranted: Boolean,
+    actionLabel: String,
+    onActionClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Dimens.CardCornerRadius),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(Dimens.SpacingMedium)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                Surface(
+                    color = if (isGranted) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isGranted) Icons.Default.Check else Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = if (isGranted) Color(0xFF2E7D32) else Color(0xFFC62828),
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                        Text(
+                            text = if (isGranted) "Granted" else "Action Required",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isGranted) Color(0xFF2E7D32) else Color(0xFFC62828)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(Dimens.SpacingSmall))
+
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            if (!isGranted) {
+                Spacer(modifier = Modifier.height(Dimens.SpacingMedium))
+                Button(
+                    onClick = onActionClick,
+                    shape = RoundedCornerShape(Dimens.ButtonCornerRadius)
+                ) {
+                    Text(actionLabel)
+                }
+            }
+        }
+    }
+}

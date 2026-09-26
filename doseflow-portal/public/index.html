@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DoseFlow — Caregiver Adherence Portal</title>
+  <meta name="description" content="Read-only remote caregiver portal for DoseFlow medication adherence and schedule monitoring with strict freshness guard.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Simulation Control Toolbar for Reviewers & Testing -->
+  <aside class="sim-toolbar" id="simToolbar" aria-label="Reviewer Controls">
+    <div class="sim-container">
+      <span class="sim-label">🔬 Freshness Guard QA:</span>
+      <div class="sim-buttons">
+        <button id="btnSimLive" class="sim-btn active" title="Simulate fresh sync under 15m window">
+          <span class="dot-green"></span> Live Synced (&lt;15m)
+        </button>
+        <button id="btnSimStale" class="sim-btn" title="Simulate device offline over 15 minutes">
+          <span class="dot-amber"></span> Stale (&gt;15m Lag)
+        </button>
+        <button id="btnSimDeadLetter" class="sim-btn" title="Simulate prolonged offline dead-letter state">
+          <span class="dot-red"></span> Dead-Letter Offline (14h)
+        </button>
+      </div>
+      <button id="btnToggleSimCode" class="sim-action-btn">
+        🔑 Show Code Generator
+      </button>
+    </div>
+  </aside>
+
+  <!-- Access Code Login Modal (if unauthenticated) -->
+  <div class="modal-backdrop" id="authModal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="brand-badge">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M12 2v20M2 12h20M7 7l10 10M17 7L7 17" stroke-linecap="round"/>
+          </svg>
+          <span>DoseFlow</span>
+        </div>
+        <h2>Caregiver Portal Sign-In</h2>
+        <p class="modal-subtitle">Enter the 8-character access code generated on the patient's device</p>
+      </div>
+      <form id="authForm" class="auth-form">
+        <div class="input-group">
+          <label for="inputAccessCode">Caregiver Access Code</label>
+          <input 
+            type="text" 
+            id="inputAccessCode" 
+            name="accessCode" 
+            placeholder="e.g. DF-8492" 
+            maxlength="8" 
+            autocomplete="off"
+            spellcheck="false"
+            required
+          />
+          <span class="input-hint">Code is hashed server-side with SHA-256 for cryptographic zero-trust security.</span>
+        </div>
+        <div id="authError" class="auth-error" style="display: none;"></div>
+        <button type="submit" id="btnSubmitAuth" class="btn-primary">
+          Connect to Patient Dashboard
+        </button>
+      </form>
+      <div class="demo-quick-login">
+        <span>Quick Demo Code:</span>
+        <button id="btnQuickDemoCode" class="btn-secondary">Use Seed Code: <strong>DF-8492</strong></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generate Code Overlay (Simulating Patient App) -->
+  <div class="modal-backdrop" id="codeGeneratorModal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="brand-badge brand-blue">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <span>Patient App Simulation</span>
+        </div>
+        <h2>Generate Caregiver Access Code</h2>
+        <p class="modal-subtitle">This represents the setup flow in the Android patient app Settings screen.</p>
+      </div>
+      <div class="code-gen-content">
+        <p class="code-gen-desc">
+          When the patient taps <strong>"Generate Caregiver Access Code"</strong>, the server stores a salted SHA-256 hash. The plaintext code is displayed <em>only once</em>:
+        </p>
+        <div class="generated-code-display" id="generatedCodeDisplay">
+          <span class="code-text" id="plainTextCodeValue">DF-8492</span>
+          <button id="btnCopyCode" class="btn-copy" title="Copy code">Copy</button>
+        </div>
+        <div class="security-banner">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span>Shown once on first setup. Plaintext is never retrievable again after closing.</span>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="btnGenerateNewCode" class="btn-secondary">Generate New Code</button>
+        <button id="btnCloseGenModal" class="btn-primary">Done / Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Navigation Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand-group">
+        <div class="logo-mark">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M12 2v20M2 12h20M7 7l10 10M17 7L7 17" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">DoseFlow</span>
+          <span class="brand-badge-tag">Caregiver Portal</span>
+        </div>
+      </div>
+
+      <div class="patient-pill" id="patientPill">
+        <div class="patient-avatar">EV</div>
+        <div class="patient-meta">
+          <span class="patient-name" id="patientNameDisplay">Eleanor Vance</span>
+          <span class="patient-device" id="patientDeviceDisplay">Samsung S23 • Eastern Time</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="readonly-badge" title="Changes can only be made on patient's primary device">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <span>Read-Only View</span>
+        </div>
+        <button id="btnDisconnect" class="btn-icon" title="Switch Access Code">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>
+          </svg>
+          <span class="hide-mobile">Exit</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- CRITICAL FRESHNESS GUARD BANNER -->
+  <div id="freshnessBannerContainer" class="banner-wrapper">
+    <!-- Dynamically rendered: Live banner OR Stale Warning Banner -->
+  </div>
+
+  <!-- Main Dashboard Container -->
+  <main class="dashboard-main">
+    <div class="dashboard-layout">
+
+      <!-- LEFT COLUMN: Today's Timeline Schedule -->
+      <section class="schedule-column" aria-labelledby="scheduleHeading">
+        <div class="card card-timeline">
+          <div class="card-header">
+            <div>
+              <h2 id="scheduleHeading" class="card-title">Today's Schedule</h2>
+              <p class="card-subtitle" id="currentDateSubtitle">Saturday, September 26, 2026</p>
+            </div>
+            <button id="btnManualRefresh" class="btn-refresh" title="Check for device updates">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+              <span>Refresh</span>
+            </button>
+          </div>
+
+          <div class="timeline-container" id="timelineList">
+            <!-- Rendered dynamically by app.js -->
+            <div class="timeline-loading">Loading schedule...</div>
+          </div>
+
+          <div class="readonly-disclaimer">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="16" x2="12" y2="12"/>
+              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            <span>
+              <strong>Caregiver Integrity Notice:</strong> All doses are confirmed and managed exclusively via Eleanor's Android phone. Remote schedule mutations are disabled to guarantee 100% offline accuracy.
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT COLUMN: Adherence Analytics & History -->
+      <aside class="analytics-column" aria-label="Adherence Statistics">
+        
+        <!-- Adherence Summary Cards -->
+        <div class="card card-analytics">
+          <h2 class="card-title">Adherence Analytics</h2>
+          <p class="card-subtitle">Calculated according to medical compliance standard</p>
+
+          <div class="adherence-grid">
+            <!-- 7-Day Card -->
+            <div class="metric-card">
+              <div class="metric-header">
+                <span class="metric-label">7-Day Adherence</span>
+                <span class="metric-badge badge-excellent">Excellent</span>
+              </div>
+              <div class="metric-body">
+                <div class="metric-circle" id="sevenDayGauge">
+                  <span class="metric-percent" id="sevenDayValue">94.4%</span>
+                </div>
+                <div class="metric-details">
+                  <div class="detail-row">
+                    <span class="dot-taken"></span>
+                    <span class="detail-label">Taken:</span>
+                    <strong id="sevenDayTaken">17</strong>
+                  </div>
+                  <div class="detail-row">
+                    <span class="dot-skipped"></span>
+                    <span class="detail-label">Skipped:</span>
+                    <strong id="sevenDaySkipped">1</strong>
+                  </div>
+                  <div class="detail-row">
+                    <span class="dot-missed"></span>
+                    <span class="detail-label">Missed:</span>
+                    <strong id="sevenDayMissed">0</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 30-Day Card -->
+            <div class="metric-card">
+              <div class="metric-header">
+                <span class="metric-label">30-Day Adherence</span>
+                <span class="metric-badge badge-good">High</span>
+              </div>
+              <div class="metric-body">
+                <div class="metric-circle" id="thirtyDayGauge">
+                  <span class="metric-percent" id="thirtyDayValue">91.8%</span>
+                </div>
+                <div class="metric-details">
+                  <div class="detail-row">
+                    <span class="dot-taken"></span>
+                    <span class="detail-label">Taken:</span>
+                    <strong id="thirtyDayTaken">78</strong>
+                  </div>
+                  <div class="detail-row">
+                    <span class="dot-skipped"></span>
+                    <span class="detail-label">Skipped:</span>
+                    <strong id="thirtyDaySkipped">4</strong>
+                  </div>
+                  <div class="detail-row">
+                    <span class="dot-missed"></span>
+                    <span class="detail-label">Missed:</span>
+                    <strong id="thirtyDayMissed">3</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Historical Log & Clinical Export -->
+        <div class="card card-history">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Recent Dose Logs</h3>
+              <p class="card-subtitle">Audited timestamps from Room outbox sync</p>
+            </div>
+            <button id="btnExportCsv" class="btn-secondary btn-sm" title="Export adherence history for physician">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+              </svg>
+              <span>Export CSV</span>
+            </button>
+          </div>
+
+          <div class="history-table-wrapper">
+            <table class="history-table" id="historyTable">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Medication</th>
+                  <th>Scheduled</th>
+                  <th>Recorded</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="historyTableBody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </aside>
+
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <div class="footer-container">
+      <span>DoseFlow Caregiver Portal v1.0.0 • Strict Zero-Trust Freshness Protocol Active</span>
+      <span class="footer-sync-time" id="footerSyncStatus">Last checked: Just now</span>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

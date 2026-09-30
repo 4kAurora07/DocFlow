@@ -48,11 +48,11 @@ class OutboxSyncEngineTest {
         )
 
         // 2000ms elapsed < 4000ms required backoff -> should NOT be satisfied
-        val tooEarly = OutboxSyncEngine.isBackoffSatisfied(event, currentTimeMs = lastAttemptTime + 2000L)
+        val tooEarly = OutboxSyncEngine.isBackoffSatisfied(event, currentTimeMs = lastAttemptTime + 2000L, jitterFactor = 0.0)
         assertFalse(tooEarly)
 
         // Exactly 4000ms elapsed -> satisfied
-        val onTime = OutboxSyncEngine.isBackoffSatisfied(event, currentTimeMs = lastAttemptTime + 4000L)
+        val onTime = OutboxSyncEngine.isBackoffSatisfied(event, currentTimeMs = lastAttemptTime + 4000L, jitterFactor = 0.0)
         assertTrue(onTime)
 
         // 10,000ms elapsed -> satisfied

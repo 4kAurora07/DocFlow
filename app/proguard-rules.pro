@@ -14,7 +14,17 @@
 -keep class * extends androidx.room.RoomDatabase
 -dontwarn androidx.room.paging.**
 
-# Compose rules
+# Keep Data Entities and DAOs
+-keep class com.doseflow.app.data.local.entity.** { *; }
+-keep interface com.doseflow.app.data.local.dao.** { *; }
+
+# Keep domain models
+-keep class com.doseflow.app.domain.model.** { *; }
+
+# Strip debug and verbose logging from release APK
 -assumenosideeffects class android.util.Log {
+    public static int d(...);
+    public static int v(...);
+    public static int i(...);
     public static boolean isLoggable(java.lang.String, int);
 }

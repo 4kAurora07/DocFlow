@@ -78,6 +78,17 @@ object OutboxSyncEngine {
         client: SyncApiClient,
         currentTimeMs: Long = System.currentTimeMillis()
     ): Int {
+        return drainOutbox(db.outboxDao(), client, currentTimeMs)
+    }
+
+    /**
+     * Synchronously processes pending events using the provided OutboxDao.
+     */
+    suspend fun drainOutbox(
+        outboxDao: com.doseflow.app.data.local.dao.OutboxDao,
+        client: SyncApiClient,
+        currentTimeMs: Long = System.currentTimeMillis()
+    ): Int {
         if (!syncMutex.tryLock()) {
             Log.d(TAG, "Sync already in progress; skipping duplicate trigger.")
             return 0
@@ -85,7 +96,7 @@ object OutboxSyncEngine {
 
         try {
             isSyncing.set(true)
-            val pendingEvents = db.outboxDao().getPendingEvents(limit = 50)
+            val pendingEvents = outboxDao.getPendingEvents(limit = 50)
             if (pendingEvents.isEmpty()) {
                 Log.d(TAG, "Outbox is clear. No pending events to sync.")
                 return 0
@@ -110,7 +121,7 @@ object OutboxSyncEngine {
                             attemptCount = nextAttempt,
                             lastAttemptEpochMillis = currentTimeMs
                         )
-                        db.outboxDao().updateEvent(updated)
+                        outboxDao.updateEvent(updated)
                         Log.i(TAG, "Outbox event ${event.id} successfully synced.")
                     }
                     is SyncResult.RetryableError -> {
@@ -120,7 +131,7 @@ object OutboxSyncEngine {
                             attemptCount = nextAttempt,
                             lastAttemptEpochMillis = currentTimeMs
                         )
-                        db.outboxDao().updateEvent(updated)
+                        outboxDao.updateEvent(updated)
                         Log.w(TAG, "Outbox event ${event.id} failed (attempt $nextAttempt/$MAX_RETRY_ATTEMPTS): ${result.reason}")
                     }
                     is SyncResult.PermanentError -> {
@@ -129,7 +140,7 @@ object OutboxSyncEngine {
                             attemptCount = nextAttempt,
                             lastAttemptEpochMillis = currentTimeMs
                         )
-                        db.outboxDao().updateEvent(updated)
+                        outboxDao.updateEvent(updated)
                         Log.e(TAG, "Outbox event ${event.id} permanently rejected: ${result.reason}")
                     }
                 }
@@ -144,10 +155,14 @@ object OutboxSyncEngine {
     /**
      * Determines whether enough backoff delay has elapsed since the last failed attempt.
      */
-    fun isBackoffSatisfied(event: OutboxEventEntity, currentTimeMs: Long): Boolean {
+    fun isBackoffSatisfied(
+        event: OutboxEventEntity,
+        currentTimeMs: Long,
+        jitterFactor: Double = 0.1
+    ): Boolean {
         if (event.lastAttemptEpochMillis == null || event.attemptCount == 0) return true
         val elapsed = currentTimeMs - event.lastAttemptEpochMillis
-        val requiredBackoff = calculateBackoffDelay(event.attemptCount)
+        val requiredBackoff = calculateBackoffDelay(event.attemptCount, jitterFactor = jitterFactor)
         return elapsed >= requiredBackoff
     }
 

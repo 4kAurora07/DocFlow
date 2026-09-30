@@ -8,8 +8,8 @@
     "test": "node test/api.test.js"
   },
   "dependencies": {
-    "express": "^4.21.2",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
   },
   "keywords": [
     "doseflow",
@@ -18,5 +18,8 @@
     "health"
   ],
   "author": "DoseFlow Team",
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "puppeteer-core": "^25.12.0"
+  }
 }

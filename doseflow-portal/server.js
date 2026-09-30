@@ -131,14 +131,20 @@ const db = {
   ]
 };
 
-// Seed initial default code "DF-8492" for Eleanor Vance
-const defaultCode = 'DF-8492';
-const hashedDefault = hashAccessCode(defaultCode);
-db.accessCodes.set(hashedDefault, {
-  patientId: 'patient_eleanor_001',
-  patientName: 'Eleanor Vance',
-  createdAt: Date.now() - (24 * 60 * 60 * 1000)
-});
+// Seed initial demo code "DF-8492" ONLY in non-production environments for local development and QA review.
+// In production (NODE_ENV === 'production'), NO default credentials exist in memory or database.
+if (process.env.NODE_ENV !== 'production') {
+  const defaultCode = 'DF-8492';
+  const hashedDefault = hashAccessCode(defaultCode);
+  db.accessCodes.set(hashedDefault, {
+    patientId: 'patient_eleanor_001',
+    patientName: 'Eleanor Vance',
+    createdAt: Date.now() - (24 * 60 * 60 * 1000)
+  });
+  console.log('[DEV ONLY] Seeded demo caregiver access code: DF-8492 (hashed in memory)');
+} else {
+  console.log('[PROD] Production mode active: Zero hardcoded credentials or demo access codes seeded.');
+}
 
 // ======================== API ROUTES ========================
 
@@ -376,7 +382,11 @@ app.get('*', (req, res) => {
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`DoseFlow Caregiver Portal running on http://localhost:${PORT}`);
-    console.log(`Default Caregiver Access Code: ${defaultCode}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[DEV ONLY] Default Caregiver Access Code: DF-8492`);
+    } else {
+      console.log(`[PROD] Running in production mode. Zero hardcoded credentials enabled.`);
+    }
   });
 }
 

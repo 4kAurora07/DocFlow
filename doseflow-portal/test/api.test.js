@@ -175,6 +175,21 @@ async function runTests() {
       assert.strictEqual(dose04.status, 'TAKEN');
     });
 
+    // 6. Security & Scaffolding: Dynamic generation produces unique credentials, invalid codes rejected
+    await test('Security & Scaffolding: Dynamic generator produces unique credentials and unseeded codes return 401', async () => {
+      const gen1 = await makeRequest('POST', '/api/access-codes/generate', { patientId: 'patient_eleanor_001' });
+      const gen2 = await makeRequest('POST', '/api/access-codes/generate', { patientId: 'patient_eleanor_001' });
+      assert.notStrictEqual(gen1.body.code, gen2.body.code, 'Dynamically generated codes must be distinct');
+
+      const dash1 = await makeRequest('GET', `/api/dashboard/${gen1.body.code}`);
+      const dash2 = await makeRequest('GET', `/api/dashboard/${gen2.body.code}`);
+      assert.strictEqual(dash1.status, 200);
+      assert.strictEqual(dash2.status, 200);
+
+      const invalid = await makeRequest('GET', '/api/dashboard/DF-0000');
+      assert.strictEqual(invalid.status, 401);
+    });
+
   } finally {
     server.close();
   }

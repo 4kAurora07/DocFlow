@@ -1,0 +1,13 @@
+{
+  "name": "adhivio-portal",
+  "version": "1.0.0",
+  "description": "DoseFlow Caregiver Web Portal and Sync Backend",
+  "scripts": {
+    "build": "cd doseflow-portal && npm install",
+    "start": "node doseflow-portal/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}

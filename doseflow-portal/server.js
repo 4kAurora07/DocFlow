@@ -43,6 +43,8 @@ function seedDefaultDemoDataIfEmpty() {
       `).run(o.id, 'patient_eleanor_001', o.schedId, o.name, o.dosage, '', o.time, o.epoch, o.status, o.actTime, o.note, now);
     }
   }
+}
+
 // In production/development, do not seed fake demo data automatically
 if (process.env.NODE_ENV === 'test') {
   seedDefaultDemoDataIfEmpty();

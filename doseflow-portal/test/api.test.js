@@ -1,3 +1,4 @@
+process.env.NODE_ENV = 'test';
 /**
  * Backend API & Cryptographic Security Test Suite
  * DoseFlow Caregiver Portal
@@ -188,6 +189,90 @@ async function runTests() {
 
       const invalid = await makeRequest('GET', '/api/dashboard/DF-0000');
       assert.strictEqual(invalid.status, 401);
+    });
+
+    // 7. Caregiver Email Login & Pairing Flow
+    await test('Caregiver Email Login, Pairing Code Matching & Immediate Data Delivery', async () => {
+      // 1. Caregiver registers or logs in with email
+      const authRes = await makeRequest('POST', '/api/auth/login', {
+        email: 'caregiver.test@doseflow.org',
+        password: 'securepassword123'
+      });
+      assert.strictEqual(authRes.status, 200);
+      assert.ok(authRes.body.token, 'Must return authentication session token');
+      const token = authRes.body.token;
+
+      // Helper with auth header
+      function makeAuthRequest(method, path, body = null) {
+        return new Promise((resolve, reject) => {
+          const url = new URL(path, BASE_URL);
+          const req = http.request(url, {
+            method,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+          }, (res) => {
+            let data = '';
+            res.on('data', chunk => { data += chunk; });
+            res.on('end', () => {
+              try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
+              catch (e) { resolve({ status: res.statusCode, body: data }); }
+            });
+          });
+          req.on('error', reject);
+          if (body) req.write(JSON.stringify(body));
+          req.end();
+        });
+      }
+
+      // Check me - initially no patient linked
+      const meRes = await makeAuthRequest('GET', '/api/auth/me');
+      assert.strictEqual(meRes.status, 200);
+      assert.strictEqual(meRes.body.caregiver.email, 'caregiver.test@doseflow.org');
+
+      // Sync custom real patient data from app
+      const customPatientId = 'patient_real_user_42';
+      const syncRes = await makeRequest('POST', '/api/sync/patient-state', {
+        patientId: customPatientId,
+        patientName: 'Arthur Pendelton',
+        deviceName: 'Google Pixel 8',
+        timeZone: 'America/Chicago',
+        pairingCode: 'DF-4242',
+        schedules: [
+          { id: 'sched_custom_1', medicineName: 'Amlodipine', dosage: '5mg', time: '09:00 AM' }
+        ],
+        occurrences: [
+          {
+            id: 'occ_custom_1',
+            scheduleId: 'sched_custom_1',
+            medicineName: 'Amlodipine',
+            dosage: '5mg',
+            scheduledTime: '09:00 AM',
+            scheduledEpochMillis: Date.now() - 3600000,
+            status: 'TAKEN',
+            actionTimestamp: Date.now() - 3500000
+          }
+        ]
+      });
+      assert.strictEqual(syncRes.status, 200);
+
+      // Now caregiver links code DF-4242 from website
+      const linkRes = await makeAuthRequest('POST', '/api/pairing/link', { code: 'DF-4242' });
+      assert.strictEqual(linkRes.status, 200);
+      assert.strictEqual(linkRes.body.success, true);
+      assert.strictEqual(linkRes.body.patient.name, 'Arthur Pendelton');
+      // Verify data is shown immediately in response!
+      assert.strictEqual(linkRes.body.dashboard.patient.name, 'Arthur Pendelton');
+      assert.strictEqual(linkRes.body.dashboard.todaySchedule[0].medicineName, 'Amlodipine');
+      assert.strictEqual(linkRes.body.dashboard.todaySchedule[0].status, 'TAKEN');
+
+      // Now GET /api/dashboard returns Arthur's real data immediately
+      const dashRes = await makeAuthRequest('GET', '/api/dashboard');
+      assert.strictEqual(dashRes.status, 200);
+      assert.strictEqual(dashRes.body.hasPatient, true);
+      assert.strictEqual(dashRes.body.patient.name, 'Arthur Pendelton');
+      assert.strictEqual(dashRes.body.todaySchedule[0].medicineName, 'Amlodipine');
     });
 
   } finally {

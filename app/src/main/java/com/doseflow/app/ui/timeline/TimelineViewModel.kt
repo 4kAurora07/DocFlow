@@ -29,6 +29,11 @@ class TimelineViewModel(application: Application) : AndroidViewModel(application
     init {
         checkPermissions()
         observeDoses()
+        viewModelScope.launch {
+            try {
+                repository.ensureCaregiverCodeAndSync()
+            } catch (_: Exception) {}
+        }
     }
 
     fun checkPermissions() {

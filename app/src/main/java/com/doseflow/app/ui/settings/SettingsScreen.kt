@@ -25,9 +25,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -103,7 +105,157 @@ fun SettingsScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(Dimens.SpacingMedium)
         ) {
-            // Permission Health
+            // Caregiver Remote Monitoring & Code Sharing
+            item {
+                Text(
+                    text = "Caregiver Remote Monitoring",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Share a code to let family or caregivers monitor adherence in real-time on the web.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(Dimens.CardCornerRadius),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(modifier = Modifier.padding(Dimens.SpacingMedium)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Caregiver Web Access",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (uiState.caregiverCode != null) {
+                                Text(
+                                    text = "Active Code",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(Dimens.SpacingSmall))
+
+
+
+                        if (uiState.caregiverCode != null) {
+                            Surface(
+                                shape = RoundedCornerShape(Dimens.CardCornerRadius),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(Dimens.SpacingMedium),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "PAIRING CODE",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            text = uiState.caregiverCode ?: "",
+                                            style = MaterialTheme.typography.headlineMedium,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                val clip = android.content.ClipData.newPlainText("Caregiver Code", uiState.caregiverCode)
+                                                val mgr = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                                mgr?.setPrimaryClip(clip)
+                                                android.widget.Toast.makeText(context, "Code copied: ${uiState.caregiverCode}", android.widget.Toast.LENGTH_SHORT).show()
+                                            }
+                                        ) {
+                                            Text("Copy")
+                                        }
+                                        Button(
+                                            onClick = {
+                                                val code = uiState.caregiverCode ?: ""
+                                                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                                    type = "text/plain"
+                                                    putExtra(
+                                                        android.content.Intent.EXTRA_TEXT,
+                                                        "Here is my DoseFlow Caregiver Access Code: $code. Enter this code on the DoseFlow Caregiver Portal to view my medications in real-time."
+                                                    )
+                                                }
+                                                context.startActivity(android.content.Intent.createChooser(intent, "Share Caregiver Code"))
+                                            }
+                                        ) {
+                                            Text("Share")
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(Dimens.SpacingSmall))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                TextButton(
+                                    onClick = { viewModel.generateCaregiverCode() },
+                                    enabled = !uiState.isSyncing
+                                ) {
+                                    Text("Regenerate Code")
+                                }
+                                TextButton(
+                                    onClick = { viewModel.syncDataNow() },
+                                    enabled = !uiState.isSyncing
+                                ) {
+                                    Text(if (uiState.isSyncing) "Syncing..." else "Sync Real Data Now")
+                                }
+                            }
+                        } else {
+                            Text(
+                                text = "Generate a secure pairing code to allow family or caregivers to view your daily doses in real-time on the website.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(Dimens.SpacingSmall))
+                            Button(
+                                onClick = { viewModel.generateCaregiverCode() },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !uiState.isSyncing
+                            ) {
+                                Text(if (uiState.isSyncing) "Connecting..." else "Generate & Share Caregiver Code")
+                            }
+                        }
+
+                        if (uiState.syncStatusMessage != null) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = uiState.syncStatusMessage ?: "",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (uiState.connectionSuccess == false) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+
+            // System Alarm Permissions
             item {
                 Text(
                     text = "System Alarm Permissions",

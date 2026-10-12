@@ -16,6 +16,9 @@ interface MedicineDao {
     @Query("SELECT * FROM medicines WHERE isArchived = 0 ORDER BY name ASC")
     fun getActiveMedicines(): Flow<List<MedicineEntity>>
 
+    @Query("SELECT * FROM medicines WHERE isArchived = 0 ORDER BY name ASC")
+    suspend fun getActiveMedicinesList(): List<MedicineEntity>
+
     @Query("SELECT * FROM medicines WHERE id = :id LIMIT 1")
     suspend fun getMedicineById(id: String): MedicineEntity?
 

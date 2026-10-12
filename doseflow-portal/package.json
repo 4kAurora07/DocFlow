@@ -4,6 +4,7 @@
   "description": "DoseFlow Caregiver Web Portal and Sync Backend",
   "main": "server.js",
   "scripts": {
+    "dev": "node --watch server.js",
     "start": "node server.js",
     "test": "node test/api.test.js"
   },

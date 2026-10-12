@@ -2,176 +2,236 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const path = require('path');
+const storage = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SALT = process.env.SALT || 'doseflow_caregiver_secure_salt_v1';
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Server-side Hashing helper
 function hashAccessCode(code) {
-  if (!code) return '';
-  return crypto.createHmac('sha256', SALT).update(code.trim().toUpperCase()).digest('hex');
+  return storage.hashAccessCode(code);
 }
 
-// In-Memory Data Store (Production would connect to PostgreSQL / Cloud SQL)
+function seedDefaultDemoDataIfEmpty() {
+  const existingEleanor = storage.db.prepare('SELECT id FROM patients WHERE id = ?').get('patient_eleanor_001');
+  if (!existingEleanor) {
+    const now = Date.now();
+    storage.db.prepare(`
+      INSERT INTO patients (id, name, age, time_zone, primary_device, last_synced_at, simulated_state, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run('patient_eleanor_001', 'Eleanor Vance', 72, 'America/New_York', 'Samsung Galaxy S23 (SM-S911U)', now - (3 * 60 * 1000), 'ONLINE', now);
+
+    storage.createAccessCode('patient_eleanor_001', 'Eleanor Vance', 'DF-8492');
+
+    // Default schedules & occurrences
+    const defaultOccs = [
+      { id: 'occ_today_01', schedId: 'sched_lisinopril', name: 'Lisinopril', dosage: '10mg', time: '08:00 AM', epoch: now - (7 * 3600 * 1000), status: 'TAKEN', actTime: now - (6 * 3600 * 1000), note: 'Logged on device' },
+      { id: 'occ_today_02', schedId: 'sched_metformin_morning', name: 'Metformin', dosage: '500mg', time: '12:30 PM', epoch: now - (2 * 3600 * 1000), status: 'TAKEN', actTime: now - (2 * 3600 * 1000), note: 'Logged on device' },
+      { id: 'occ_today_03', schedId: 'sched_atorvastatin', name: 'Atorvastatin', dosage: '20mg', time: '04:00 PM', epoch: now + (2 * 3600 * 1000), status: 'PENDING', actTime: null, note: null },
+      { id: 'occ_today_04', schedId: 'sched_metformin_night', name: 'Metformin', dosage: '500mg', time: '08:00 PM', epoch: now + (6 * 3600 * 1000), status: 'PENDING', actTime: null, note: null }
+    ];
+
+    for (const o of defaultOccs) {
+      storage.db.prepare(`
+        INSERT INTO occurrences (id, patient_id, schedule_id, medicine_name, dosage, instructions, scheduled_time, scheduled_epoch_millis, status, action_timestamp, action_note, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(o.id, 'patient_eleanor_001', o.schedId, o.name, o.dosage, '', o.time, o.epoch, o.status, o.actTime, o.note, now);
+    }
+  }
+// In production/development, do not seed fake demo data automatically
+if (process.env.NODE_ENV === 'test') {
+  seedDefaultDemoDataIfEmpty();
+}
+
+function getOrVerifyCode(code) {
+  if (!code) return null;
+  const clean = code.trim().toUpperCase();
+  return storage.verifyAccessCode(clean);
+}
+
+// Compatibility proxy db object for test suite (asserts db.accessCodes.has(...), db.patients, etc.)
 const db = {
-  accessCodes: new Map(), // hashedCode -> { patientId, patientName, createdAt }
-  patients: {
-    'patient_eleanor_001': {
-      id: 'patient_eleanor_001',
-      name: 'Eleanor Vance',
-      age: 72,
-      timeZone: 'America/New_York',
-      primaryDevice: 'Samsung Galaxy S23 (SM-S911U)',
-      lastSyncedAt: Date.now() - (3 * 60 * 1000), // Default 3 minutes ago (online)
-      simulatedState: 'ONLINE' // ONLINE | STALE | DEAD_LETTER
-    }
+  get accessCodes() {
+    return {
+      has(hash) {
+        const row = storage.db.prepare('SELECT code_hash FROM access_codes WHERE code_hash = ?').get(hash);
+        return !!row;
+      },
+      get(hash) {
+        const row = storage.db.prepare('SELECT * FROM access_codes WHERE code_hash = ?').get(hash);
+        if (!row) return undefined;
+        return { patientId: row.patient_id, patientName: row.patient_name, createdAt: row.created_at };
+      },
+      set(hash, val) {
+        const patientId = val.patientId || 'patient_eleanor_001';
+        const patientName = val.patientName || 'Eleanor Vance';
+        // Ensure patient exists
+        const p = storage.db.prepare('SELECT id FROM patients WHERE id = ?').get(patientId);
+        if (!p) {
+          const now = Date.now();
+          storage.db.prepare(`
+            INSERT INTO patients (id, name, age, time_zone, primary_device, last_synced_at, simulated_state, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(patientId, patientName, 72, 'America/New_York', 'Device', now, 'ONLINE', now);
+        }
+        storage.db.prepare(`
+          INSERT OR REPLACE INTO access_codes (code_hash, patient_id, patient_name, plain_preview, created_at)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(hash, patientId, patientName, null, val.createdAt || Date.now());
+      }
+    };
   },
-  schedules: [
-    {
-      id: 'sched_lisinopril',
-      medicineName: 'Lisinopril',
-      dosage: '10mg',
-      unit: 'Tablet',
-      instructions: 'Take 1 tablet with water before breakfast',
-      time: '08:00'
-    },
-    {
-      id: 'sched_metformin_morning',
-      medicineName: 'Metformin',
-      dosage: '500mg',
-      unit: 'Tablet',
-      instructions: 'Take with midday meal',
-      time: '12:30'
-    },
-    {
-      id: 'sched_atorvastatin',
-      medicineName: 'Atorvastatin',
-      dosage: '20mg',
-      unit: 'Tablet',
-      instructions: 'Take in the late afternoon / evening',
-      time: '16:00'
-    },
-    {
-      id: 'sched_metformin_night',
-      medicineName: 'Metformin',
-      dosage: '500mg',
-      unit: 'Tablet',
-      instructions: 'Take with dinner',
-      time: '20:00'
-    }
-  ],
-  occurrences: [
-    {
-      id: 'occ_today_01',
-      scheduleId: 'sched_lisinopril',
-      medicineName: 'Lisinopril',
-      dosage: '10mg',
-      instructions: 'Take 1 tablet with water before breakfast',
-      scheduledTime: '08:00 AM',
-      scheduledEpochMillis: Date.now() - (7 * 60 * 60 * 1000),
-      status: 'TAKEN',
-      actionTimestamp: Date.now() - (6 * 60 * 60 * 1000 + 56 * 60 * 1000), // 8:04 AM
-      actionNote: 'Logged via notification quick action'
-    },
-    {
-      id: 'occ_today_02',
-      scheduleId: 'sched_metformin_morning',
-      medicineName: 'Metformin',
-      dosage: '500mg',
-      instructions: 'Take with midday meal',
-      scheduledTime: '12:30 PM',
-      scheduledEpochMillis: Date.now() - (2 * 60 * 60 * 1000),
-      status: 'TAKEN',
-      actionTimestamp: Date.now() - (2 * 60 * 60 * 1000 - 5 * 60 * 1000), // 12:35 PM
-      actionNote: 'Logged on device'
-    },
-    {
-      id: 'occ_today_03',
-      scheduleId: 'sched_atorvastatin',
-      medicineName: 'Atorvastatin',
-      dosage: '20mg',
-      instructions: 'Take in the late afternoon / evening',
-      scheduledTime: '04:00 PM',
-      scheduledEpochMillis: Date.now() + (2 * 60 * 60 * 1000),
-      status: 'PENDING',
-      actionTimestamp: null,
-      actionNote: null
-    },
-    {
-      id: 'occ_today_04',
-      scheduleId: 'sched_metformin_night',
-      medicineName: 'Metformin',
-      dosage: '500mg',
-      instructions: 'Take with dinner',
-      scheduledTime: '08:00 PM',
-      scheduledEpochMillis: Date.now() + (6 * 60 * 60 * 1000),
-      status: 'PENDING',
-      actionTimestamp: null,
-      actionNote: null
-    }
-  ],
-  historyLogs: [
-    { date: 'Yesterday', medicine: 'Metformin 500mg', scheduled: '8:00 PM', recorded: '8:02 PM', status: 'TAKEN' },
-    { date: 'Yesterday', medicine: 'Atorvastatin 20mg', scheduled: '4:00 PM', recorded: '4:15 PM', status: 'TAKEN' },
-    { date: 'Yesterday', medicine: 'Metformin 500mg', scheduled: '12:30 PM', recorded: '12:30 PM', status: 'TAKEN' },
-    { date: 'Yesterday', medicine: 'Lisinopril 10mg', scheduled: '8:00 AM', recorded: '8:00 AM', status: 'TAKEN' },
-    { date: '2 days ago', medicine: 'Metformin 500mg', scheduled: '8:00 PM', recorded: '8:10 PM', status: 'TAKEN' },
-    { date: '2 days ago', medicine: 'Atorvastatin 20mg', scheduled: '4:00 PM', recorded: 'Skipped', status: 'SKIPPED', note: 'Patient reported mild stomach upset' },
-    { date: '2 days ago', medicine: 'Metformin 500mg', scheduled: '12:30 PM', recorded: '12:32 PM', status: 'TAKEN' },
-    { date: '2 days ago', medicine: 'Lisinopril 10mg', scheduled: '8:00 AM', recorded: '8:05 AM', status: 'TAKEN' },
-    { date: '3 days ago', medicine: 'Metformin 500mg', scheduled: '8:00 PM', recorded: 'Missed', status: 'MISSED', note: 'Auto-marked missed at T+45m' },
-    { date: '3 days ago', medicine: 'Atorvastatin 20mg', scheduled: '4:00 PM', recorded: '4:01 PM', status: 'TAKEN' },
-    { date: '3 days ago', medicine: 'Metformin 500mg', scheduled: '12:30 PM', recorded: '12:35 PM', status: 'TAKEN' },
-    { date: '3 days ago', medicine: 'Lisinopril 10mg', scheduled: '8:00 AM', recorded: '8:02 AM', status: 'TAKEN' }
-  ]
+  get patients() {
+    return new Proxy({}, {
+      get(target, prop) {
+        const row = storage.db.prepare('SELECT * FROM patients WHERE id = ?').get(prop);
+        if (!row) return undefined;
+        return {
+          id: row.id,
+          name: row.name,
+          age: row.age,
+          timeZone: row.time_zone,
+          primaryDevice: row.primary_device,
+          get lastSyncedAt() { return row.last_synced_at; },
+          set lastSyncedAt(val) { storage.db.prepare('UPDATE patients SET last_synced_at = ? WHERE id = ?').run(val, row.id); },
+          get simulatedState() { return row.simulated_state; },
+          set simulatedState(val) { storage.db.prepare('UPDATE patients SET simulated_state = ? WHERE id = ?').run(val, row.id); }
+        };
+      }
+    });
+  },
+  get occurrences() {
+    return storage.db.prepare('SELECT * FROM occurrences WHERE patient_id = ?').all('patient_eleanor_001').map(row => ({
+      id: row.id,
+      scheduleId: row.schedule_id,
+      medicineName: row.medicine_name,
+      dosage: row.dosage,
+      instructions: row.instructions,
+      scheduledTime: row.scheduled_time,
+      get scheduledEpochMillis() { return row.scheduled_epoch_millis; },
+      set scheduledEpochMillis(v) { storage.db.prepare('UPDATE occurrences SET scheduled_epoch_millis = ? WHERE id = ?').run(v, row.id); },
+      get status() { return row.status; },
+      set status(v) { storage.db.prepare('UPDATE occurrences SET status = ? WHERE id = ?').run(v, row.id); },
+      get actionTimestamp() { return row.action_timestamp; },
+      set actionTimestamp(v) { storage.db.prepare('UPDATE occurrences SET action_timestamp = ? WHERE id = ?').run(v, row.id); },
+      actionNote: row.action_note
+    }));
+  }
 };
 
-// Seed initial demo code "DF-8492" ONLY in non-production environments for local development and QA review.
-// In production (NODE_ENV === 'production'), NO default credentials exist in memory or database.
-if (process.env.NODE_ENV !== 'production') {
-  const defaultCode = 'DF-8492';
-  const hashedDefault = hashAccessCode(defaultCode);
-  db.accessCodes.set(hashedDefault, {
-    patientId: 'patient_eleanor_001',
-    patientName: 'Eleanor Vance',
-    createdAt: Date.now() - (24 * 60 * 60 * 1000)
-  });
-  console.log('[DEV ONLY] Seeded demo caregiver access code: DF-8492 (hashed in memory)');
-} else {
-  console.log('[PROD] Production mode active: Zero hardcoded credentials or demo access codes seeded.');
+// Auth Middleware
+function authMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized. Please sign in.' });
+  }
+  const token = authHeader.split(' ')[1];
+  const caregiver = storage.getCaregiverByToken(token);
+  if (!caregiver) {
+    return res.status(401).json({ error: 'Session expired. Please sign in again.' });
+  }
+  req.caregiver = caregiver;
+  req.token = token;
+  next();
 }
 
-// ======================== API ROUTES ========================
+// ======================== AUTH ROUTES ========================
 
 /**
- * POST /api/access-codes/generate
- * Generates an 8-character human-friendly access code (e.g. DF-7429).
- * The server hashes the code before saving. The plaintext code is returned ONCE.
+ * POST /api/auth/register
+ * Simple caregiver registration with email and password
+ */
+app.post('/api/auth/register', (req, res) => {
+  const { email, password, name } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required.' });
+  }
+  if (password.length < 4) {
+    return res.status(400).json({ error: 'Password must be at least 4 characters.' });
+  }
+  try {
+    const result = storage.registerOrLoginCaregiver(email, password, name);
+    const linkedPatient = storage.getLinkedPatient(result.caregiver.id);
+    return res.status(201).json({
+      success: true,
+      token: result.token,
+      caregiver: result.caregiver,
+      linkedPatient: linkedPatient ? { id: linkedPatient.id, name: linkedPatient.name } : null
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/auth/login
+ * Simple caregiver email login (creates account automatically if email is new)
+ */
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required.' });
+  }
+  try {
+    const result = storage.registerOrLoginCaregiver(email, password);
+    const linkedPatient = storage.getLinkedPatient(result.caregiver.id);
+    return res.json({
+      success: true,
+      token: result.token,
+      caregiver: result.caregiver,
+      isNewAccount: result.isNew,
+      linkedPatient: linkedPatient ? { id: linkedPatient.id, name: linkedPatient.name } : null
+    });
+  } catch (err) {
+    return res.status(401).json({ error: err.message || 'Invalid email or password.' });
+  }
+});
+
+/**
+ * GET /api/auth/me
+ * Retrieves current caregiver session and currently linked patient
+ */
+app.get('/api/auth/me', authMiddleware, (req, res) => {
+  const linkedPatient = storage.getLinkedPatient(req.caregiver.id);
+  return res.json({
+    caregiver: req.caregiver,
+    linkedPatient: linkedPatient ? { id: linkedPatient.id, name: linkedPatient.name } : null
+  });
+});
+
+/**
+ * POST /api/auth/logout
+ */
+app.post('/api/auth/logout', (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    storage.db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+  }
+  return res.json({ success: true });
+});
+
+// ======================== PAIRING & CODES ========================
+
+/**
+ * POST /api/access-codes/generate (or /api/pairing/create)
+ * Called by the Android mobile app when patient taps "Share Caregiver Code"
  */
 app.post('/api/access-codes/generate', (req, res) => {
-  const { patientId = 'patient_eleanor_001', patientName = 'Eleanor Vance' } = req.body;
+  const { patientId = 'patient_eleanor_001', patientName = 'Eleanor Vance', plainCode = null } = req.body;
   
-  // Generate random 4-digit suffix
-  const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-  const plainTextCode = `DF-${randomSuffix}`;
-  const hashed = hashAccessCode(plainTextCode);
-
-  db.accessCodes.set(hashed, {
-    patientId,
-    patientName,
-    createdAt: Date.now()
-  });
+  const created = storage.createAccessCode(patientId, patientName, plainCode);
 
   return res.status(201).json({
     success: true,
-    code: plainTextCode,
-    patientId,
-    patientName,
+    code: created.code,
+    patientId: created.patientId,
+    patientName: created.patientName,
     createdAt: new Date().toISOString(),
     securityNotice: 'This code is hashed server-side and shown only once. Share with trusted caregivers.'
   });
@@ -179,7 +239,7 @@ app.post('/api/access-codes/generate', (req, res) => {
 
 /**
  * POST /api/access-codes/verify
- * Validates a code by computing HMAC-SHA256 and checking the registry.
+ * Validates a code by checking the database
  */
 app.post('/api/access-codes/verify', (req, res) => {
   const { code } = req.body;
@@ -187,9 +247,7 @@ app.post('/api/access-codes/verify', (req, res) => {
     return res.status(400).json({ error: 'Access code is required' });
   }
 
-  const hashed = hashAccessCode(code);
-  const record = db.accessCodes.get(hashed);
-
+  const record = storage.verifyAccessCode(code);
   if (!record) {
     return res.status(401).json({
       valid: false,
@@ -199,177 +257,179 @@ app.post('/api/access-codes/verify', (req, res) => {
 
   return res.json({
     valid: true,
-    patientId: record.patientId,
-    patientName: record.patientName
+    patientId: record.patient_id,
+    patientName: record.patient_name
+  });
+});
+
+/**
+ * POST /api/pairing/link
+ * Links an authenticated caregiver with a patient via code.
+ * As soon as codes match, links patient and returns full dashboard immediately!
+ */
+app.post('/api/pairing/link', authMiddleware, (req, res) => {
+  const { code } = req.body;
+  if (!code) {
+    return res.status(400).json({ error: 'Code is required' });
+  }
+
+  const record = storage.verifyAccessCode(code);
+  if (!record) {
+    return res.status(401).json({ error: 'Invalid or unrecognized pairing code. Check the code in the patient mobile app.' });
+  }
+
+  // Link caregiver with patient in SQLite
+  storage.linkCaregiverToPatient(req.caregiver.id, record.patient_id);
+
+  // Return the live dashboard immediately!
+  const dashboard = storage.getPatientDashboard(record.patient_id);
+  return res.json({
+    success: true,
+    message: `Connected to ${record.patient_name}'s mobile device.`,
+    patient: { id: record.patient_id, name: record.patient_name },
+    dashboard
+  });
+});
+
+/**
+ * POST /api/pairing/unlink
+ * Unlinks patient from caregiver
+ */
+app.post('/api/pairing/unlink', authMiddleware, (req, res) => {
+  storage.unlinkCaregiver(req.caregiver.id);
+  return res.json({ success: true, message: 'Unlinked patient successfully.' });
+});
+
+// ======================== SYNC ROUTES (ANDROID APP) ========================
+
+/**
+ * POST /api/sync/patient-state
+ * Endpoint for Android app to push real medication schedules, profile, and occurrences
+ */
+app.post('/api/sync/patient-state', (req, res) => {
+  const { patientId, patientName, deviceName, timeZone, schedules, occurrences, pairingCode } = req.body;
+
+  if (!patientId) {
+    return res.status(400).json({ error: 'patientId is required' });
+  }
+
+  // Upsert patient profile, schedules, occurrences into SQLite
+  const result = storage.upsertPatientState({
+    patientId,
+    patientName,
+    deviceName,
+    timeZone,
+    schedules,
+    occurrences
+  });
+
+  // If a pairing code was provided or requested, ensure it is registered
+  if (pairingCode) {
+    storage.createAccessCode(patientId, patientName, pairingCode);
+  }
+
+  return res.json({
+    success: true,
+    lastSyncedAt: result.lastSyncedAt,
+    message: 'Patient state synchronized successfully.'
   });
 });
 
 /**
  * POST /api/sync/events
- * Endpoint for the Android OutboxSyncEngine to deliver queued dose and heartbeat events.
+ * Endpoint for Android OutboxSyncEngine to deliver queued dose actions & heartbeats
  */
 app.post('/api/sync/events', (req, res) => {
   const { patientId = 'patient_eleanor_001', events = [] } = req.body;
-  const patient = db.patients[patientId];
-  if (!patient) {
+  
+  const result = storage.applySyncEvents(patientId, events);
+  if (!result) {
     return res.status(404).json({ error: 'Patient not found' });
-  }
-
-  // Update device heartbeat
-  patient.lastSyncedAt = Date.now();
-  patient.simulatedState = 'ONLINE';
-
-  let appliedCount = 0;
-  for (const event of events) {
-    if (event.eventType === 'DOSE_TAKEN' || event.eventType === 'DOSE_SKIPPED' || event.eventType === 'DOSE_MISSED') {
-      try {
-        const payload = JSON.parse(event.payloadJson || '{}');
-        const occ = db.occurrences.find(o => o.id === event.aggregateId || o.id === payload.occurrenceId);
-        if (occ) {
-          occ.status = payload.status || (event.eventType.replace('DOSE_', ''));
-          occ.actionTimestamp = payload.timestamp || Date.now();
-          appliedCount++;
-        }
-      } catch (e) {
-        // Continue processing batch
-      }
-    }
   }
 
   return res.json({
     success: true,
     processedEvents: events.length,
-    appliedDoseUpdates: appliedCount,
-    lastSyncedAt: patient.lastSyncedAt
+    appliedDoseUpdates: result.appliedCount,
+    lastSyncedAt: result.lastSyncedAt
+  });
+});
+
+// ======================== DASHBOARD ROUTES ========================
+
+/**
+ * GET /api/dashboard
+ * Authenticated endpoint: returns dashboard for caregiver's currently linked patient
+ */
+app.get('/api/dashboard', authMiddleware, (req, res) => {
+  const linkedPatient = storage.getLinkedPatient(req.caregiver.id);
+  if (!linkedPatient) {
+    return res.status(200).json({
+      hasPatient: false,
+      message: 'No patient linked yet. Please enter a pairing code from the mobile app.'
+    });
+  }
+
+  const dashboard = storage.getPatientDashboard(linkedPatient.id);
+  if (!dashboard) {
+    return res.status(404).json({ error: 'Patient records not found.' });
+  }
+
+  return res.json({
+    hasPatient: true,
+    ...dashboard
   });
 });
 
 /**
  * GET /api/dashboard/:code
- * Returns the caregiver view. Requires valid access code.
- * Implements the Strict Freshness Guard.
+ * Backward-compatible & direct code inspection endpoint
  */
 app.get('/api/dashboard/:code', (req, res) => {
   const code = req.params.code;
-  const hashed = hashAccessCode(code);
-  const record = db.accessCodes.get(hashed);
+  const record = storage.verifyAccessCode(code);
 
   if (!record) {
     return res.status(401).json({ error: 'Invalid access code' });
   }
 
-  const patient = db.patients[record.patientId];
-  if (!patient) {
+  const dashboard = storage.getPatientDashboard(record.patient_id);
+  if (!dashboard) {
     return res.status(404).json({ error: 'Patient records not found' });
   }
 
-  const now = Date.now();
-  const stalenessMs = now - patient.lastSyncedAt;
-  const stalenessMinutes = Math.floor(stalenessMs / 60000);
-  
-  // Freshness Guard: If device hasn't synced in > 15 minutes, it is STALE
-  const isStale = stalenessMinutes >= 15 || patient.simulatedState === 'STALE' || patient.simulatedState === 'DEAD_LETTER';
-
-  // Format today's occurrences according to freshness contract
-  const occurrencesWithFreshness = db.occurrences.map(occ => {
-    // If the device is stale and a dose scheduled in the past is still unconfirmed,
-    // NEVER show it as silently missed or pending without an explicit warning chip!
-    if (isStale && occ.scheduledEpochMillis <= now && occ.status === 'PENDING') {
-      return {
-        ...occ,
-        displayStatus: 'AWAITING_SYNC',
-        freshnessWarning: 'Device offline during dose window; awaiting verification'
-      };
-    }
-    return {
-      ...occ,
-      displayStatus: occ.status,
-      freshnessWarning: null
-    };
-  });
-
-  // Calculate adherence
-  const sevenDay = {
-    adherenceRate: 94.4,
-    taken: 17,
-    skipped: 1,
-    missed: 0,
-    totalScheduled: 18
-  };
-
-  const thirtyDay = {
-    adherenceRate: 91.8,
-    taken: 78,
-    skipped: 4,
-    missed: 3,
-    totalScheduled: 85
-  };
-
-  return res.json({
-    patient: {
-      id: patient.id,
-      name: patient.name,
-      age: patient.age,
-      timeZone: patient.timeZone,
-      primaryDevice: patient.primaryDevice
-    },
-    deviceStatus: {
-      lastSyncedAtEpochMillis: patient.lastSyncedAt,
-      lastSyncedAtIso: new Date(patient.lastSyncedAt).toISOString(),
-      stalenessMinutes: Math.max(stalenessMinutes, patient.simulatedState === 'STALE' ? 45 : (patient.simulatedState === 'DEAD_LETTER' ? 720 : stalenessMinutes)),
-      isStale,
-      connectionState: patient.simulatedState,
-      freshnessContract: {
-        maxFreshnessWindowMinutes: 15,
-        staleBannerRequired: isStale,
-        statusText: isStale ? 'OFFLINE_STALE' : 'LIVE_SYNCED'
-      }
-    },
-    todaySchedule: occurrencesWithFreshness,
-    adherence: {
-      sevenDay,
-      thirtyDay
-    },
-    historyLogs: db.historyLogs,
-    isReadOnly: true,
-    serverTimestamp: now
-  });
+  return res.json(dashboard);
 });
 
 /**
  * POST /api/simulate
- * Utility endpoint for reviewers and QA to toggle the live vs stale vs dead-letter states.
+ * Utility endpoint for testing live vs stale states
  */
 app.post('/api/simulate', (req, res) => {
-  const { mode = 'live' } = req.body;
-  const patient = db.patients['patient_eleanor_001'];
+  const { mode = 'live', patientId = 'patient_eleanor_001' } = req.body;
+  const patient = storage.db.prepare('SELECT * FROM patients WHERE id = ?').get(patientId);
 
-  if (mode === 'stale') {
-    patient.simulatedState = 'STALE';
-    patient.lastSyncedAt = Date.now() - (45 * 60 * 1000); // 45 minutes ago
-    // Set 4:00 PM dose to past scheduled time so it hits the AWAITING_SYNC condition
-    const occ3 = db.occurrences.find(o => o.id === 'occ_today_03');
-    if (occ3) {
-      occ3.scheduledEpochMillis = Date.now() - (15 * 60 * 1000);
-      occ3.status = 'PENDING';
-    }
-  } else if (mode === 'dead_letter') {
-    patient.simulatedState = 'DEAD_LETTER';
-    patient.lastSyncedAt = Date.now() - (14 * 60 * 60 * 1000); // 14 hours ago (offline)
-  } else {
-    patient.simulatedState = 'ONLINE';
-    patient.lastSyncedAt = Date.now() - (2 * 60 * 1000); // 2 minutes ago
-    const occ3 = db.occurrences.find(o => o.id === 'occ_today_03');
-    if (occ3) {
-      occ3.scheduledEpochMillis = Date.now() + (2 * 60 * 60 * 1000);
-      occ3.status = 'PENDING';
-    }
+  if (!patient) {
+    return res.status(404).json({ error: 'Patient not found' });
   }
 
+  const now = Date.now();
+  if (mode === 'stale') {
+    storage.db.prepare("UPDATE patients SET simulated_state = 'STALE', last_synced_at = ? WHERE id = ?").run(now - (45 * 60 * 1000), patientId);
+    // Adjust 4:00 PM dose to past scheduled time
+    storage.db.prepare("UPDATE occurrences SET scheduled_epoch_millis = ?, status = 'PENDING' WHERE id = 'occ_today_03'").run(now - (15 * 60 * 1000));
+  } else if (mode === 'dead_letter') {
+    storage.db.prepare("UPDATE patients SET simulated_state = 'DEAD_LETTER', last_synced_at = ? WHERE id = ?").run(now - (14 * 60 * 60 * 1000), patientId);
+  } else {
+    storage.db.prepare("UPDATE patients SET simulated_state = 'ONLINE', last_synced_at = ? WHERE id = ?").run(now - (2 * 60 * 1000), patientId);
+    storage.db.prepare("UPDATE occurrences SET scheduled_epoch_millis = ?, status = 'PENDING' WHERE id = 'occ_today_03'").run(now + (2 * 60 * 60 * 1000));
+  }
+
+  const updated = storage.db.prepare('SELECT * FROM patients WHERE id = ?').get(patientId);
   return res.json({
     success: true,
-    mode: patient.simulatedState,
-    lastSyncedAt: new Date(patient.lastSyncedAt).toISOString()
+    mode: updated.simulated_state,
+    lastSyncedAt: new Date(updated.last_synced_at).toISOString()
   });
 });
 
@@ -378,16 +438,12 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Start listening
+// Start listening if run directly
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`DoseFlow Caregiver Portal running on http://localhost:${PORT}`);
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[DEV ONLY] Default Caregiver Access Code: DF-8492`);
-    } else {
-      console.log(`[PROD] Running in production mode. Zero hardcoded credentials enabled.`);
-    }
+    console.log(`Persistent SQLite database active at data/doseflow.db`);
   });
 }
 
-module.exports = { app, hashAccessCode, db };
+module.exports = { app, hashAccessCode, db, storage };

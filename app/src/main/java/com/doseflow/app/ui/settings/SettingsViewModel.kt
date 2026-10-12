@@ -3,11 +3,14 @@ package com.doseflow.app.ui.settings
 import android.app.Application
 import android.os.Build
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.doseflow.app.data.DoseFlowRepository
 import com.doseflow.app.platform.util.PowerAndPermissionHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 data class SettingsUiState(
     val hasExactAlarmPermission: Boolean = true,
@@ -15,11 +18,18 @@ data class SettingsUiState(
     val isIgnoringBatteryOptimizations: Boolean = true,
     val manufacturer: String = Build.MANUFACTURER,
     val model: String = Build.MODEL,
-    val androidVersion: String = "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
+    val androidVersion: String = "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+    val caregiverCode: String? = null,
+    val serverUrl: String = "https://adhivio-med.onrender.com",
+    val patientName: String = "My Android Device",
+    val isSyncing: Boolean = false,
+    val syncStatusMessage: String? = null,
+    val connectionSuccess: Boolean? = null
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val repository = DoseFlowRepository(application)
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
@@ -32,13 +42,86 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val exactAlarm = PowerAndPermissionHelper.canScheduleExactAlarms(app)
         val notifications = PowerAndPermissionHelper.hasNotificationPermission(app)
         val battery = PowerAndPermissionHelper.isIgnoringBatteryOptimizations(app)
+        val code = repository.getCaregiverCode()
+        val url = repository.getServerUrl()
+        val name = repository.getPatientName()
 
         _uiState.update {
             it.copy(
                 hasExactAlarmPermission = exactAlarm,
                 hasNotificationPermission = notifications,
-                isIgnoringBatteryOptimizations = battery
+                isIgnoringBatteryOptimizations = battery,
+                caregiverCode = code,
+                serverUrl = url,
+                patientName = name
             )
+        }
+    }
+
+    fun updateServerUrl(url: String) {
+        val clean = url.trim().trimEnd('/')
+        repository.setServerUrl(clean)
+        _uiState.update { it.copy(serverUrl = clean, connectionSuccess = null) }
+    }
+
+    fun updatePatientName(name: String) {
+        val clean = name.trim()
+        repository.setPatientName(clean)
+        _uiState.update { it.copy(patientName = clean) }
+    }
+
+    fun testConnection() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSyncing = true, syncStatusMessage = "Testing server connection...") }
+            val (ok, message) = repository.testServerConnection()
+            _uiState.update {
+                it.copy(
+                    isSyncing = false,
+                    connectionSuccess = ok,
+                    syncStatusMessage = message
+                )
+            }
+        }
+    }
+
+    fun generateCaregiverCode(onComplete: ((String) -> Unit)? = null) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSyncing = true, syncStatusMessage = "Connecting to server and generating code...") }
+            val code = repository.generateAndRegisterCaregiverCode()
+            if (code != null) {
+                repository.setCaregiverCode(code)
+                _uiState.update {
+                    it.copy(
+                        caregiverCode = code,
+                        isSyncing = false,
+                        connectionSuccess = true,
+                        syncStatusMessage = "Connected! Patient data synced to web dashboard."
+                    )
+                }
+                onComplete?.invoke(code)
+            } else {
+                _uiState.update {
+                    it.copy(
+                        isSyncing = false,
+                        connectionSuccess = false,
+                        syncStatusMessage = "Could not reach server at ${_uiState.value.serverUrl}. Ensure computer and phone are on the same Wi-Fi."
+                    )
+                }
+            }
+        }
+    }
+
+    fun syncDataNow() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSyncing = true, syncStatusMessage = "Syncing with caregiver portal...") }
+            val success = repository.syncFullStateToCaregiverPortal()
+            _uiState.update {
+                it.copy(
+                    isSyncing = false,
+                    connectionSuccess = success,
+                    syncStatusMessage = if (success) "Successfully synced real medication records to portal!" else "Sync failed. Check Server URL."
+                )
+            }
         }
     }
 }

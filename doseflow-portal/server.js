@@ -17,38 +17,7 @@ function hashAccessCode(code) {
   return storage.hashAccessCode(code);
 }
 
-function seedDefaultDemoDataIfEmpty() {
-  const existingEleanor = storage.db.prepare('SELECT id FROM patients WHERE id = ?').get('patient_eleanor_001');
-  if (!existingEleanor) {
-    const now = Date.now();
-    storage.db.prepare(`
-      INSERT INTO patients (id, name, age, time_zone, primary_device, last_synced_at, simulated_state, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run('patient_eleanor_001', 'Eleanor Vance', 72, 'America/New_York', 'Samsung Galaxy S23 (SM-S911U)', now - (3 * 60 * 1000), 'ONLINE', now);
 
-    storage.createAccessCode('patient_eleanor_001', 'Eleanor Vance', 'DF-8492');
-
-    // Default schedules & occurrences
-    const defaultOccs = [
-      { id: 'occ_today_01', schedId: 'sched_lisinopril', name: 'Lisinopril', dosage: '10mg', time: '08:00 AM', epoch: now - (7 * 3600 * 1000), status: 'TAKEN', actTime: now - (6 * 3600 * 1000), note: 'Logged on device' },
-      { id: 'occ_today_02', schedId: 'sched_metformin_morning', name: 'Metformin', dosage: '500mg', time: '12:30 PM', epoch: now - (2 * 3600 * 1000), status: 'TAKEN', actTime: now - (2 * 3600 * 1000), note: 'Logged on device' },
-      { id: 'occ_today_03', schedId: 'sched_atorvastatin', name: 'Atorvastatin', dosage: '20mg', time: '04:00 PM', epoch: now + (2 * 3600 * 1000), status: 'PENDING', actTime: null, note: null },
-      { id: 'occ_today_04', schedId: 'sched_metformin_night', name: 'Metformin', dosage: '500mg', time: '08:00 PM', epoch: now + (6 * 3600 * 1000), status: 'PENDING', actTime: null, note: null }
-    ];
-
-    for (const o of defaultOccs) {
-      storage.db.prepare(`
-        INSERT INTO occurrences (id, patient_id, schedule_id, medicine_name, dosage, instructions, scheduled_time, scheduled_epoch_millis, status, action_timestamp, action_note, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(o.id, 'patient_eleanor_001', o.schedId, o.name, o.dosage, '', o.time, o.epoch, o.status, o.actTime, o.note, now);
-    }
-  }
-}
-
-// In production/development, do not seed fake demo data automatically
-if (process.env.NODE_ENV === 'test') {
-  seedDefaultDemoDataIfEmpty();
-}
 
 function getOrVerifyCode(code) {
   if (!code) return null;
@@ -70,8 +39,8 @@ const db = {
         return { patientId: row.patient_id, patientName: row.patient_name, createdAt: row.created_at };
       },
       set(hash, val) {
-        const patientId = val.patientId || 'patient_eleanor_001';
-        const patientName = val.patientName || 'Eleanor Vance';
+        const patientId = val.patientId || ('patient_' + Date.now());
+        const patientName = val.patientName || 'Patient';
         // Ensure patient exists
         const p = storage.db.prepare('SELECT id FROM patients WHERE id = ?').get(patientId);
         if (!p) {
@@ -79,7 +48,7 @@ const db = {
           storage.db.prepare(`
             INSERT INTO patients (id, name, age, time_zone, primary_device, last_synced_at, simulated_state, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(patientId, patientName, 72, 'America/New_York', 'Device', now, 'ONLINE', now);
+          `).run(patientId, patientName, null, 'UTC', 'Device', now, 'ONLINE', now);
         }
         storage.db.prepare(`
           INSERT OR REPLACE INTO access_codes (code_hash, patient_id, patient_name, plain_preview, created_at)
@@ -108,7 +77,7 @@ const db = {
     });
   },
   get occurrences() {
-    return storage.db.prepare('SELECT * FROM occurrences WHERE patient_id = ?').all('patient_eleanor_001').map(row => ({
+    return storage.db.prepare('SELECT * FROM occurrences').all().map(row => ({
       id: row.id,
       scheduleId: row.schedule_id,
       medicineName: row.medicine_name,
@@ -225,7 +194,10 @@ app.post('/api/auth/logout', (req, res) => {
  * Called by the Android mobile app when patient taps "Share Caregiver Code"
  */
 app.post('/api/access-codes/generate', (req, res) => {
-  const { patientId = 'patient_eleanor_001', patientName = 'Eleanor Vance', plainCode = null } = req.body;
+  const { patientId, patientName, plainCode = null } = req.body;
+  if (!patientId || !patientName) {
+    return res.status(400).json({ error: 'patientId and patientName are required' });
+  }
   
   const created = storage.createAccessCode(patientId, patientName, plainCode);
 
@@ -342,7 +314,10 @@ app.post('/api/sync/patient-state', (req, res) => {
  * Endpoint for Android OutboxSyncEngine to deliver queued dose actions & heartbeats
  */
 app.post('/api/sync/events', (req, res) => {
-  const { patientId = 'patient_eleanor_001', events = [] } = req.body;
+  const { patientId, events = [] } = req.body;
+  if (!patientId) {
+    return res.status(400).json({ error: 'patientId is required' });
+  }
   
   const result = storage.applySyncEvents(patientId, events);
   if (!result) {
@@ -401,38 +376,6 @@ app.get('/api/dashboard/:code', (req, res) => {
   }
 
   return res.json(dashboard);
-});
-
-/**
- * POST /api/simulate
- * Utility endpoint for testing live vs stale states
- */
-app.post('/api/simulate', (req, res) => {
-  const { mode = 'live', patientId = 'patient_eleanor_001' } = req.body;
-  const patient = storage.db.prepare('SELECT * FROM patients WHERE id = ?').get(patientId);
-
-  if (!patient) {
-    return res.status(404).json({ error: 'Patient not found' });
-  }
-
-  const now = Date.now();
-  if (mode === 'stale') {
-    storage.db.prepare("UPDATE patients SET simulated_state = 'STALE', last_synced_at = ? WHERE id = ?").run(now - (45 * 60 * 1000), patientId);
-    // Adjust 4:00 PM dose to past scheduled time
-    storage.db.prepare("UPDATE occurrences SET scheduled_epoch_millis = ?, status = 'PENDING' WHERE id = 'occ_today_03'").run(now - (15 * 60 * 1000));
-  } else if (mode === 'dead_letter') {
-    storage.db.prepare("UPDATE patients SET simulated_state = 'DEAD_LETTER', last_synced_at = ? WHERE id = ?").run(now - (14 * 60 * 60 * 1000), patientId);
-  } else {
-    storage.db.prepare("UPDATE patients SET simulated_state = 'ONLINE', last_synced_at = ? WHERE id = ?").run(now - (2 * 60 * 1000), patientId);
-    storage.db.prepare("UPDATE occurrences SET scheduled_epoch_millis = ?, status = 'PENDING' WHERE id = 'occ_today_03'").run(now + (2 * 60 * 60 * 1000));
-  }
-
-  const updated = storage.db.prepare('SELECT * FROM patients WHERE id = ?').get(patientId);
-  return res.json({
-    success: true,
-    mode: updated.simulated_state,
-    lastSyncedAt: new Date(updated.last_synced_at).toISOString()
-  });
 });
 
 // Fallback to SPA index.html

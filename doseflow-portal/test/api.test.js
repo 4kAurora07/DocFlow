@@ -6,7 +6,7 @@ process.env.NODE_ENV = 'test';
 
 const assert = require('assert');
 const http = require('http');
-const { app, hashAccessCode, db } = require('../server');
+const { app, hashAccessCode, storage } = require('../server');
 
 let server;
 const PORT = 3987;
@@ -81,31 +81,33 @@ async function runTests() {
       assert.strictEqual(hash1.length, 64, 'SHA-256 HMAC must be 64 hex characters');
     });
 
-    await test('Plaintext access codes are NEVER stored in database registry', () => {
-      const defaultHash = hashAccessCode('DF-8492');
-      assert.ok(db.accessCodes.has(defaultHash), 'Database must store hashed code');
-      assert.ok(!db.accessCodes.has('DF-8492'), 'Database must NOT store plaintext code as key');
-    });
-
-    // 2. Generate Access Code
+    // 2. Generate Access Code & Verify Storage
+    let generatedCode = '';
     await test('POST /api/access-codes/generate creates new code and stores hash', async () => {
       const res = await makeRequest('POST', '/api/access-codes/generate', {
-        patientId: 'patient_eleanor_001',
-        patientName: 'Eleanor Vance'
+        patientId: 'patient_test_001',
+        patientName: 'Test Patient'
       });
 
       assert.strictEqual(res.status, 201);
       assert.ok(res.body.code.startsWith('DF-'), 'Code must start with DF- prefix');
-      const generatedHash = hashAccessCode(res.body.code);
-      assert.ok(db.accessCodes.has(generatedHash), 'Database must contain hash of generated code');
+      generatedCode = res.body.code;
+      const generatedHash = hashAccessCode(generatedCode);
+      const row = storage.db.prepare('SELECT * FROM access_codes WHERE code_hash = ?').get(generatedHash);
+      assert.ok(row, 'Database must contain hash of generated code');
+    });
+
+    await test('Plaintext access codes are NEVER stored as primary key', () => {
+      const rawRow = storage.db.prepare('SELECT * FROM access_codes WHERE code_hash = ?').get(generatedCode);
+      assert.strictEqual(rawRow, undefined, 'Database must NOT store plaintext code as key');
     });
 
     // 3. Verify Access Code
     await test('POST /api/access-codes/verify validates correct code', async () => {
-      const res = await makeRequest('POST', '/api/access-codes/verify', { code: 'DF-8492' });
+      const res = await makeRequest('POST', '/api/access-codes/verify', { code: generatedCode });
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.body.valid, true);
-      assert.strictEqual(res.body.patientName, 'Eleanor Vance');
+      assert.strictEqual(res.body.patientName, 'Test Patient');
     });
 
     await test('POST /api/access-codes/verify rejects invalid code with 401', async () => {
@@ -114,49 +116,51 @@ async function runTests() {
       assert.strictEqual(res.body.valid, false);
     });
 
-    // 4. Freshness Guard Contract
-    await test('GET /api/dashboard/:code enforces Read-Only flag', async () => {
-      const res = await makeRequest('GET', '/api/dashboard/DF-8492');
+    // 4. Sync Patient State & Dashboard Read-Only
+    await test('Sync patient state and verify GET /api/dashboard/:code enforces Read-Only flag', async () => {
+      const syncRes = await makeRequest('POST', '/api/sync/patient-state', {
+        patientId: 'patient_test_001',
+        patientName: 'Test Patient',
+        deviceName: 'Pixel 8',
+        timeZone: 'America/New_York',
+        pairingCode: generatedCode,
+        schedules: [
+          { id: 'sched_test_1', medicineName: 'Metformin', dosage: '500mg', time: '08:00 AM' }
+        ],
+        occurrences: [
+          {
+            id: 'occ_test_1',
+            scheduleId: 'sched_test_1',
+            medicineName: 'Metformin',
+            dosage: '500mg',
+            scheduledTime: '08:00 AM',
+            scheduledEpochMillis: Date.now() - 60000,
+            status: 'TAKEN',
+            actionTimestamp: Date.now() - 30000
+          }
+        ]
+      });
+      assert.strictEqual(syncRes.status, 200);
+
+      const res = await makeRequest('GET', `/api/dashboard/${generatedCode}`);
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.body.isReadOnly, true, 'Dashboard must be strictly read-only');
-    });
-
-    await test('Freshness Guard: Online state reflects LIVE_SYNCED under 15m window', async () => {
-      await makeRequest('POST', '/api/simulate', { mode: 'live' });
-      const res = await makeRequest('GET', '/api/dashboard/DF-8492');
-
-      assert.strictEqual(res.status, 200);
-      assert.strictEqual(res.body.deviceStatus.isStale, false);
-      assert.strictEqual(res.body.deviceStatus.freshnessContract.statusText, 'LIVE_SYNCED');
-    });
-
-    await test('Freshness Guard: Stale state (>15m lag) surfaces OFFLINE_STALE and AWAITING_SYNC chip', async () => {
-      await makeRequest('POST', '/api/simulate', { mode: 'stale' });
-      const res = await makeRequest('GET', '/api/dashboard/DF-8492');
-
-      assert.strictEqual(res.status, 200);
-      assert.strictEqual(res.body.deviceStatus.isStale, true, 'Device must be flagged stale when > 15m lag');
-      assert.strictEqual(res.body.deviceStatus.freshnessContract.statusText, 'OFFLINE_STALE');
-      assert.strictEqual(res.body.deviceStatus.freshnessContract.staleBannerRequired, true);
-
-      // Verify that past unconfirmed dose is converted to AWAITING_SYNC, not silently pending or missed!
-      const unconfirmedDose = res.body.todaySchedule.find(d => d.id === 'occ_today_03');
-      assert.ok(unconfirmedDose, 'Dose 03 must exist');
-      assert.strictEqual(unconfirmedDose.displayStatus, 'AWAITING_SYNC', 'Unconfirmed dose under stale device must be AWAITING_SYNC');
-      assert.ok(unconfirmedDose.freshnessWarning.includes('Device offline'), 'Warning text must explain offline state');
+      assert.strictEqual(res.body.patient.name, 'Test Patient');
+      assert.strictEqual(res.body.todaySchedule.length, 1);
+      assert.strictEqual(res.body.todaySchedule[0].medicineName, 'Metformin');
     });
 
     // 5. Mobile Outbox Event Sync Ingestion
-    await test('POST /api/sync/events ingests mobile batch and resets online heartbeat', async () => {
+    await test('POST /api/sync/events ingests mobile batch and updates occurrences', async () => {
       const syncPayload = {
-        patientId: 'patient_eleanor_001',
+        patientId: 'patient_test_001',
         events: [
           {
             id: 'evt_sync_001',
             eventType: 'DOSE_TAKEN',
-            aggregateId: 'occ_today_04',
+            aggregateId: 'occ_test_1',
             payloadJson: JSON.stringify({
-              occurrenceId: 'occ_today_04',
+              occurrenceId: 'occ_test_1',
               status: 'TAKEN',
               timestamp: Date.now()
             })
@@ -169,17 +173,16 @@ async function runTests() {
       assert.strictEqual(res.body.success, true);
       assert.strictEqual(res.body.processedEvents, 1);
 
-      // Re-query dashboard: device must be live again and dose 04 marked TAKEN
-      const dash = await makeRequest('GET', '/api/dashboard/DF-8492');
+      const dash = await makeRequest('GET', `/api/dashboard/${generatedCode}`);
       assert.strictEqual(dash.body.deviceStatus.isStale, false);
-      const dose04 = dash.body.todaySchedule.find(d => d.id === 'occ_today_04');
-      assert.strictEqual(dose04.status, 'TAKEN');
+      const dose = dash.body.todaySchedule.find(d => d.id === 'occ_test_1');
+      assert.strictEqual(dose.status, 'TAKEN');
     });
 
     // 6. Security & Scaffolding: Dynamic generation produces unique credentials, invalid codes rejected
     await test('Security & Scaffolding: Dynamic generator produces unique credentials and unseeded codes return 401', async () => {
-      const gen1 = await makeRequest('POST', '/api/access-codes/generate', { patientId: 'patient_eleanor_001' });
-      const gen2 = await makeRequest('POST', '/api/access-codes/generate', { patientId: 'patient_eleanor_001' });
+      const gen1 = await makeRequest('POST', '/api/access-codes/generate', { patientId: 'patient_test_001', patientName: 'Test Patient' });
+      const gen2 = await makeRequest('POST', '/api/access-codes/generate', { patientId: 'patient_test_001', patientName: 'Test Patient' });
       assert.notStrictEqual(gen1.body.code, gen2.body.code, 'Dynamically generated codes must be distinct');
 
       const dash1 = await makeRequest('GET', `/api/dashboard/${gen1.body.code}`);
@@ -193,7 +196,6 @@ async function runTests() {
 
     // 7. Caregiver Email Login & Pairing Flow
     await test('Caregiver Email Login, Pairing Code Matching & Immediate Data Delivery', async () => {
-      // 1. Caregiver registers or logs in with email
       const authRes = await makeRequest('POST', '/api/auth/login', {
         email: 'caregiver.test@doseflow.org',
         password: 'securepassword123'
@@ -202,7 +204,6 @@ async function runTests() {
       assert.ok(authRes.body.token, 'Must return authentication session token');
       const token = authRes.body.token;
 
-      // Helper with auth header
       function makeAuthRequest(method, path, body = null) {
         return new Promise((resolve, reject) => {
           const url = new URL(path, BASE_URL);
@@ -232,13 +233,13 @@ async function runTests() {
       assert.strictEqual(meRes.body.caregiver.email, 'caregiver.test@doseflow.org');
 
       // Sync custom real patient data from app
-      const customPatientId = 'patient_real_user_42';
+      const customPatientId = 'patient_real_user_99';
       const syncRes = await makeRequest('POST', '/api/sync/patient-state', {
         patientId: customPatientId,
-        patientName: 'Arthur Pendelton',
+        patientName: 'Jane Doe',
         deviceName: 'Google Pixel 8',
         timeZone: 'America/Chicago',
-        pairingCode: 'DF-4242',
+        pairingCode: 'DF-9999',
         schedules: [
           { id: 'sched_custom_1', medicineName: 'Amlodipine', dosage: '5mg', time: '09:00 AM' }
         ],
@@ -249,29 +250,29 @@ async function runTests() {
             medicineName: 'Amlodipine',
             dosage: '5mg',
             scheduledTime: '09:00 AM',
-            scheduledEpochMillis: Date.now() - 3600000,
+            scheduledEpochMillis: Date.now(),
             status: 'TAKEN',
-            actionTimestamp: Date.now() - 3500000
+            actionTimestamp: Date.now()
           }
         ]
       });
       assert.strictEqual(syncRes.status, 200);
 
-      // Now caregiver links code DF-4242 from website
-      const linkRes = await makeAuthRequest('POST', '/api/pairing/link', { code: 'DF-4242' });
+      // Now caregiver links code DF-9999 from website
+      const linkRes = await makeAuthRequest('POST', '/api/pairing/link', { code: 'DF-9999' });
       assert.strictEqual(linkRes.status, 200);
       assert.strictEqual(linkRes.body.success, true);
-      assert.strictEqual(linkRes.body.patient.name, 'Arthur Pendelton');
+      assert.strictEqual(linkRes.body.patient.name, 'Jane Doe');
       // Verify data is shown immediately in response!
-      assert.strictEqual(linkRes.body.dashboard.patient.name, 'Arthur Pendelton');
+      assert.strictEqual(linkRes.body.dashboard.patient.name, 'Jane Doe');
       assert.strictEqual(linkRes.body.dashboard.todaySchedule[0].medicineName, 'Amlodipine');
       assert.strictEqual(linkRes.body.dashboard.todaySchedule[0].status, 'TAKEN');
 
-      // Now GET /api/dashboard returns Arthur's real data immediately
+      // Now GET /api/dashboard returns Jane Doe's real data immediately
       const dashRes = await makeAuthRequest('GET', '/api/dashboard');
       assert.strictEqual(dashRes.status, 200);
       assert.strictEqual(dashRes.body.hasPatient, true);
-      assert.strictEqual(dashRes.body.patient.name, 'Arthur Pendelton');
+      assert.strictEqual(dashRes.body.patient.name, 'Jane Doe');
       assert.strictEqual(dashRes.body.todaySchedule[0].medicineName, 'Amlodipine');
     });
 

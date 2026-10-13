@@ -27,7 +27,7 @@ class DefaultSyncApiClient(
                 return saved.trimEnd('/')
             }
         }
-        return DEFAULT_BASE_URL.trimEnd('/')
+        return baseUrl.trimEnd('/')
     }
 
     private fun getResolvedPatientId(): String {

@@ -211,10 +211,10 @@ function verifyAccessCode(code) {
 // Upsert patient state from Android app
 function upsertPatientState(data) {
   const {
-    patientId = 'patient_eleanor_001',
-    patientName = 'Eleanor Vance',
+    patientId = ('patient_' + Date.now()),
+    patientName = 'Patient',
     deviceName = 'Android Device',
-    timeZone = 'America/New_York',
+    timeZone = 'UTC',
     schedules = [],
     occurrences = []
   } = data;
@@ -226,13 +226,17 @@ function upsertPatientState(data) {
     db.prepare(`
       INSERT INTO patients (id, name, age, time_zone, primary_device, last_synced_at, simulated_state, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(patientId, patientName, 72, timeZone, deviceName, now, 'ONLINE', now);
+    `).run(patientId, patientName, null, timeZone, deviceName, now, 'ONLINE', now);
   } else {
     db.prepare(`
       UPDATE patients
       SET name = ?, primary_device = ?, time_zone = ?, last_synced_at = ?, simulated_state = 'ONLINE'
       WHERE id = ?
     `).run(patientName, deviceName, timeZone, now, patientId);
+  }
+
+  if (data.pairingCode) {
+    createAccessCode(patientId, patientName, data.pairingCode);
   }
 
   // Upsert schedules
@@ -265,6 +269,8 @@ function upsertPatientState(data) {
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
+        patient_id=excluded.patient_id,
+        schedule_id=excluded.schedule_id,
         medicine_name=excluded.medicine_name,
         dosage=excluded.dosage,
         instructions=excluded.instructions,

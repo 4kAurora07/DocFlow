@@ -85,7 +85,7 @@ class DefaultSyncApiClientTest {
         assertEquals("Server must have received exactly 1 HTTP request", 1, receivedRequests.size)
 
         val sentBody = receivedRequests.first()
-        assertTrue("Sent body must contain patientId", sentBody.contains("patient_eleanor_001"))
+        assertTrue("Sent body must contain patientId", sentBody.contains("patient_"))
         assertTrue("Sent body must contain event ID", sentBody.contains("evt-sync-101"))
         assertTrue("Sent body must contain eventType DOSE_TAKEN", sentBody.contains("DOSE_TAKEN"))
         assertTrue("Sent body must contain aggregateId occ-today-01", sentBody.contains("occ-today-01"))

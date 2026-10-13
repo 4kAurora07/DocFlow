@@ -89,86 +89,6 @@ button, input, select, textarea {
   font-family: inherit;
 }
 
-/* ======================== SIMULATION TOOLBAR ======================== */
-.sim-toolbar {
-  background: #002020;
-  color: #FAFDFD;
-  padding: 8px 16px;
-  font-size: 0.8rem;
-  border-bottom: 1px solid #004F4F;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.sim-container {
-  max-width: var(--max-width);
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.sim-label {
-  font-weight: 600;
-  color: #80D5D4;
-}
-
-.sim-buttons {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.sim-btn {
-  background: #003737;
-  color: #DAE5E4;
-  border: 1px solid #004F4F;
-  border-radius: var(--radius-sm);
-  padding: 5px 12px;
-  font-size: 0.775rem;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s ease;
-}
-
-.sim-btn:hover {
-  background: #004F4F;
-  color: #FFFFFF;
-}
-
-.sim-btn.active {
-  background: var(--primary-600);
-  color: #FFFFFF;
-  border-color: var(--primary-100);
-  box-shadow: 0 0 8px rgba(0, 106, 106, 0.4);
-}
-
-.dot-green { width: 8px; height: 8px; border-radius: 50%; background: #10B981; }
-.dot-amber { width: 8px; height: 8px; border-radius: 50%; background: #F59E0B; }
-.dot-red { width: 8px; height: 8px; border-radius: 50%; background: #EF4444; }
-
-.sim-action-btn {
-  background: transparent;
-  color: #9CF1F0;
-  border: 1px dashed #008988;
-  border-radius: var(--radius-sm);
-  padding: 5px 10px;
-  font-size: 0.775rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.sim-action-btn:hover {
-  background: rgba(0, 106, 106, 0.2);
-}
-
 /* ======================== APP HEADER ======================== */
 .app-header {
   background: var(--surface-card);
@@ -887,52 +807,6 @@ button, input, select, textarea {
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.demo-quick-login {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-subtle);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  text-align: center;
-}
-
-/* Code Generator Modal */
-.generated-code-display {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  background: #E0F7F6;
-  border: 2px dashed var(--primary-600);
-  border-radius: var(--radius-lg);
-  padding: 16px;
-  margin: 16px 0;
-}
-
-.code-text {
-  font-family: 'Outfit', monospace;
-  font-size: 1.8rem;
-  font-weight: 800;
-  color: var(--primary-600);
-  letter-spacing: 0.1em;
-}
-
-.security-banner {
-  background: #FFFBEB;
-  border: 1px solid #FDE68A;
-  color: #92400E;
-  padding: 10px 14px;
-  border-radius: var(--radius-md);
-  font-size: 0.775rem;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
 }
 
 .modal-actions {

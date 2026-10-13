@@ -19,26 +19,12 @@
   const inputEmail = document.getElementById('inputEmail');
   const inputPassword = document.getElementById('inputPassword');
   const authError = document.getElementById('authError');
-  const btnQuickDemoLogin = document.getElementById('btnQuickDemoLogin');
 
   const pairingModal = document.getElementById('pairingModal');
   const pairingForm = document.getElementById('pairingForm');
   const inputPairingCode = document.getElementById('inputPairingCode');
   const pairingError = document.getElementById('pairingError');
-  const btnQuickDemoCode = document.getElementById('btnQuickDemoCode');
   const btnCancelPairing = document.getElementById('btnCancelPairing');
-
-  // Simulation & App Simulator Elements
-  const btnSimLive = document.getElementById('btnSimLive');
-  const btnSimStale = document.getElementById('btnSimStale');
-  const btnSimDeadLetter = document.getElementById('btnSimDeadLetter');
-  const btnToggleSimCode = document.getElementById('btnToggleSimCode');
-  const codeGeneratorModal = document.getElementById('codeGeneratorModal');
-  const btnCloseGenModal = document.getElementById('btnCloseGenModal');
-  const btnGenerateNewCode = document.getElementById('btnGenerateNewCode');
-  const plainTextCodeValue = document.getElementById('plainTextCodeValue');
-  const btnCopyCode = document.getElementById('btnCopyCode');
-  const btnUseSimCodeNow = document.getElementById('btnUseSimCodeNow');
 
   // Dashboard Header Elements
   const patientAvatarDisplay = document.getElementById('patientAvatarDisplay');
@@ -499,42 +485,6 @@
     }
   }
 
-  async function setSimulationMode(mode) {
-    try {
-      const { ok } = await apiRequest('/api/simulate', 'POST', {
-        mode,
-        patientId: linkedPatient ? linkedPatient.id : 'patient_eleanor_001'
-      });
-      if (ok) {
-        updateSimToolbarState(mode);
-        await loadDashboard();
-      }
-    } catch (err) {
-      console.error('Failed to set simulation mode:', err);
-    }
-  }
-
-  function updateSimToolbarState(mode) {
-    [btnSimLive, btnSimStale, btnSimDeadLetter].forEach(b => b && b.classList.remove('active'));
-    if (mode === 'live' && btnSimLive) btnSimLive.classList.add('active');
-    if (mode === 'stale' && btnSimStale) btnSimStale.classList.add('active');
-    if (mode === 'dead_letter' && btnSimDeadLetter) btnSimDeadLetter.classList.add('active');
-  }
-
-  async function generateNewAccessCode() {
-    try {
-      const { ok, data } = await apiRequest('/api/access-codes/generate', 'POST', {
-        patientId: linkedPatient ? linkedPatient.id : 'patient_eleanor_001',
-        patientName: linkedPatient ? linkedPatient.name : 'Eleanor Vance'
-      });
-      if (ok && data.code) {
-        plainTextCodeValue.textContent = data.code;
-      }
-    } catch (err) {
-      console.error('Failed to generate code:', err);
-    }
-  }
-
   function exportCsv() {
     if (!cachedDashboardData || !cachedDashboardData.historyLogs) return;
     const logs = cachedDashboardData.historyLogs;
@@ -560,24 +510,11 @@
       handleLogin(inputEmail.value, inputPassword.value);
     });
 
-    btnQuickDemoLogin.addEventListener('click', () => {
-      inputEmail.value = 'demo.caregiver@doseflow.org';
-      inputPassword.value = 'demo1234';
-      handleLogin(inputEmail.value, inputPassword.value);
-    });
-
     // Pairing Form
     pairingForm.addEventListener('submit', (e) => {
       e.preventDefault();
       handlePairingCode(inputPairingCode.value);
     });
-
-    if (btnQuickDemoCode) {
-      btnQuickDemoCode.addEventListener('click', () => {
-        inputPairingCode.value = 'DF-8492';
-        handlePairingCode('DF-8492');
-      });
-    }
 
     btnCancelPairing.addEventListener('click', () => {
       if (linkedPatient) {
@@ -599,46 +536,6 @@
       await loadDashboard();
       setTimeout(() => btnManualRefresh.classList.remove('spinning'), 500);
     });
-
-    // Simulation Controls
-    if (btnSimLive) btnSimLive.addEventListener('click', () => setSimulationMode('live'));
-    if (btnSimStale) btnSimStale.addEventListener('click', () => setSimulationMode('stale'));
-    if (btnSimDeadLetter) btnSimDeadLetter.addEventListener('click', () => setSimulationMode('dead_letter'));
-
-    // Code Generator Simulation Modal
-    if (btnToggleSimCode) {
-      btnToggleSimCode.addEventListener('click', () => {
-        codeGeneratorModal.style.display = 'flex';
-      });
-    }
-    if (btnCloseGenModal) {
-      btnCloseGenModal.addEventListener('click', () => {
-        codeGeneratorModal.style.display = 'none';
-      });
-    }
-    if (btnGenerateNewCode) {
-      btnGenerateNewCode.addEventListener('click', generateNewAccessCode);
-    }
-    if (btnCopyCode) {
-      btnCopyCode.addEventListener('click', () => {
-        navigator.clipboard.writeText(plainTextCodeValue.textContent.trim());
-        btnCopyCode.textContent = 'Copied!';
-        setTimeout(() => { btnCopyCode.textContent = 'Copy'; }, 2000);
-      });
-    }
-    if (btnUseSimCodeNow) {
-      btnUseSimCodeNow.addEventListener('click', () => {
-        const code = plainTextCodeValue.textContent.trim();
-        codeGeneratorModal.style.display = 'none';
-        if (caregiverToken) {
-          showPairingModal(true);
-          inputPairingCode.value = code;
-          handlePairingCode(code);
-        } else {
-          showAuthModal('Please sign in first to pair this patient code.');
-        }
-      });
-    }
 
     if (btnExportCsv) {
       btnExportCsv.addEventListener('click', exportCsv);

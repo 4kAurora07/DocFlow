@@ -13,27 +13,6 @@
 </head>
 <body>
 
-  <!-- Simulation Control Toolbar for Reviewers & Testing -->
-  <aside class="sim-toolbar" id="simToolbar" aria-label="Reviewer Controls">
-    <div class="sim-container">
-      <span class="sim-label">🔬 Freshness Guard QA:</span>
-      <div class="sim-buttons">
-        <button id="btnSimLive" class="sim-btn active" title="Simulate fresh sync under 15m window">
-          <span class="dot-green"></span> Live Synced (&lt;15m)
-        </button>
-        <button id="btnSimStale" class="sim-btn" title="Simulate device offline over 15 minutes">
-          <span class="dot-amber"></span> Stale (&gt;15m Lag)
-        </button>
-        <button id="btnSimDeadLetter" class="sim-btn" title="Simulate prolonged offline dead-letter state">
-          <span class="dot-red"></span> Dead-Letter Offline (14h)
-        </button>
-      </div>
-      <button id="btnToggleSimCode" class="sim-action-btn">
-        📱 App Code Simulator
-      </button>
-    </div>
-  </aside>
-
   <!-- STEP 1: Caregiver Email Login Modal -->
   <div class="modal-backdrop" id="authModal" style="display: none;">
     <div class="modal-card">
@@ -75,10 +54,6 @@
           Sign In / Continue
         </button>
       </form>
-      <div class="demo-quick-login">
-        <span>Quick Test Login:</span>
-        <button id="btnQuickDemoLogin" class="btn-secondary">Use: <strong>demo.caregiver@doseflow.org</strong></button>
-      </div>
     </div>
   </div>
 
@@ -123,47 +98,8 @@
           Match Code &amp; View Patient Data
         </button>
       </form>
-      <div class="demo-quick-login" style="justify-content: center; margin-top: 12px;">
+      <div style="text-align: center; margin-top: 12px;">
         <button id="btnCancelPairing" class="btn-secondary" style="display: none;">Cancel</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Generate Code Overlay (Simulating Patient App) -->
-  <div class="modal-backdrop" id="codeGeneratorModal" style="display: none;">
-    <div class="modal-card">
-      <div class="modal-header">
-        <div class="brand-badge brand-blue">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-          </svg>
-          <span>Patient App Simulation</span>
-        </div>
-        <h2>Patient App Code Generator</h2>
-        <p class="modal-subtitle">Simulates tapping "Share Caregiver Code" in the DoseFlow Android app Settings.</p>
-      </div>
-      <div class="code-gen-content">
-        <p class="code-gen-desc">
-          When the patient taps <strong>"Share Caregiver Code"</strong>, a code is generated and saved to the SQLite database. Enter it on the website to view data immediately:
-        </p>
-        <div class="generated-code-display" id="generatedCodeDisplay">
-          <span class="code-text" id="plainTextCodeValue">DF-8492</span>
-          <button id="btnCopyCode" class="btn-copy" title="Copy code">Copy</button>
-        </div>
-        <div class="security-banner">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          <span>Code is securely hashed with HMAC-SHA256 and matched instantly.</span>
-        </div>
-      </div>
-      <div class="modal-actions">
-        <button id="btnGenerateNewCode" class="btn-secondary">Generate New Code</button>
-        <button id="btnUseSimCodeNow" class="btn-primary">Fill in Code on Website</button>
-        <button id="btnCloseGenModal" class="btn-secondary">Close</button>
       </div>
     </div>
   </div>

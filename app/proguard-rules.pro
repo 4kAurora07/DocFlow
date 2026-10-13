@@ -17,9 +17,13 @@
 # Keep Data Entities and DAOs
 -keep class com.doseflow.app.data.local.entity.** { *; }
 -keep interface com.doseflow.app.data.local.dao.** { *; }
+-keep class com.doseflow.app.data.sync.** { *; }
+-keep class com.doseflow.app.data.DoseFlowRepository { *; }
 
-# Keep domain models
+# Keep domain models and platform helpers
 -keep class com.doseflow.app.domain.model.** { *; }
+-keep class com.doseflow.app.platform.** { *; }
+-keep class com.doseflow.app.ui.settings.** { *; }
 
 # Strip debug and verbose logging from release APK
 -assumenosideeffects class android.util.Log {

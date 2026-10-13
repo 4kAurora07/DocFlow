@@ -358,10 +358,10 @@ fun SettingsScreen(
                 }
             }
 
-            // Architecture & Privacy Reassurance
+            // Privacy & Cloud Sync Architecture
             item {
                 Text(
-                    text = "Privacy & Local Device Architecture",
+                    text = "Privacy & Cloud Sync Architecture",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = Dimens.SpacingSmall)
@@ -375,25 +375,45 @@ fun SettingsScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(modifier = Modifier.padding(Dimens.SpacingMedium)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(Dimens.SpacingSmall))
-                            Text(
-                                text = "Local-First & Offline Engine",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(Dimens.SpacingSmall))
+                                Text(
+                                    text = "Real-Time Cloud Synchronization",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                shape = RoundedCornerShape(Dimens.BadgeCornerRadius)
+                            ) {
+                                Text(
+                                    text = "Online Cloud Sync",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
+
                         Spacer(modifier = Modifier.height(Dimens.SpacingSmall))
                         Text(
-                            text = "DoseFlow operates natively on your phone using Android Room SQLite and AlarmManager. Reminders and exact alarms trigger reliably without internet access, in airplane mode, or during signal dropouts.",
+                            text = "Adhivio connects online over 5G/4G cellular networks and Wi-Fi to synchronize your medication schedules, taken/skipped logs, and daily adherence directly with the secure cloud server.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+
                         Spacer(modifier = Modifier.height(Dimens.SpacingMedium))
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -404,42 +424,87 @@ fun SettingsScreen(
                             )
                             Spacer(modifier = Modifier.width(Dimens.SpacingSmall))
                             Text(
-                                text = "Encrypted Caregiver Telemetry",
+                                text = "Global Caregiver Monitoring",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                         Spacer(modifier = Modifier.height(Dimens.SpacingSmall))
                         Text(
-                            text = "Remote monitoring communicates over TLS 1.3 HTTPS exclusively when paired with your explicit 6-character code. The caregiver portal is strictly read-only — all schedule authority remains on this device.",
+                            text = "Family members and caregivers can view live updates from anywhere in the world on the web dashboard (adhivio-med.onrender.com) using your unique 6-character pairing code.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+
+                        Spacer(modifier = Modifier.height(Dimens.SpacingMedium))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(Dimens.SpacingSmall))
+                            Text(
+                                text = "Encrypted & Read-Only Protection",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(Dimens.SpacingSmall))
+                        Text(
+                            text = "All data transmitted to the cloud is encrypted in-transit via TLS 1.3 HTTPS. The caregiver dashboard is strictly read-only — remote users cannot alter your dosages or cancel your alarms. You can regenerate your code at any time to instantly revoke access.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
                         Spacer(modifier = Modifier.height(Dimens.SpacingMedium))
 
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                            shape = RoundedCornerShape(Dimens.BadgeCornerRadius),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(Dimens.SpacingSmall)) {
+                            Column(modifier = Modifier.padding(Dimens.SpacingMedium)) {
                                 Text(
-                                    text = "Device: ${uiState.manufacturer} ${uiState.model}",
+                                    text = "PRODUCTION CLOUD ARCHITECTURE",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "• Cloud Server: https://adhivio-med.onrender.com",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "OS Version: Android ${uiState.androidVersion}",
+                                    text = "• Connection Mode: Online Real-Time Sync (Cellular / Wi-Fi)",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.outline
                                 )
                                 Text(
-                                    text = "Database: Room SQLite (WAL Mode, ACID compliant)",
+                                    text = "• Security: TLS 1.3 HTTPS Encryption",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.outline
                                 )
                                 Text(
-                                    text = "Scheduler: AlarmManager Exact & While-Idle",
+                                    text = "• Access Control: Authenticated 6-Character Pairing Code",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                Text(
+                                    text = "• Alarm Reliability: Native Android AlarmManager (Exact & While-Idle)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                Text(
+                                    text = "• Device: ${uiState.manufacturer.uppercase()} ${uiState.model} • Android ${uiState.androidVersion}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                Text(
+                                    text = "• Environment: Production Release v1.0",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.outline
                                 )

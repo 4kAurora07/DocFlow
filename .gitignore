@@ -18,3 +18,5 @@ keystore.properties
 *.keystore
 doseflow-portal/data/
 *.db
+node_modules/
+.kotlin/

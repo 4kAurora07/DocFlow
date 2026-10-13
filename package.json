@@ -1,10 +1,17 @@
 {
-  "name": "adhivio-portal",
+  "name": "adhivio-app",
   "version": "1.0.0",
-  "description": "DoseFlow Caregiver Web Portal and Sync Backend",
+  "description": "Adhivio Medication Adherence App & Caregiver Portal",
+  "bin": {
+    "apk": "./build-apk.js",
+    "build-apk": "./build-apk.js"
+  },
   "scripts": {
+    "apk": "node build-apk.js",
+    "build:apk": "node build-apk.js",
     "build": "cd doseflow-portal && npm install",
-    "start": "node doseflow-portal/server.js"
+    "start": "node doseflow-portal/server.js",
+    "portal": "node doseflow-portal/server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

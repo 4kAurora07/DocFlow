@@ -1,5 +1,6 @@
 package com.doseflow.app.ui.timeline
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import com.doseflow.app.R
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -72,6 +78,16 @@ fun TimelineScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                navigationIcon = {
+                    Image(
+                        painter = painterResource(id = R.drawable.app_logo),
+                        contentDescription = "Adhivio Logo",
+                        modifier = Modifier
+                            .padding(start = 16.dp, end = 8.dp)
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                    )
+                },
                 title = {
                     Column {
                         Text(

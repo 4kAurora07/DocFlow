@@ -12,6 +12,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
 
 class DoseCardComposeTest {
 
@@ -24,11 +26,14 @@ class DoseCardComposeTest {
         var snoozeClicked = false
         var skipClicked = false
 
+        val now = Instant.now()
         val occurrence = DoseOccurrence(
             id = "occ-test-1",
             scheduleId = "sched-test-1",
             medicineId = "med-test-1",
-            scheduledEpochMillis = Instant.now().toEpochMilli(),
+            scheduledTime = now,
+            intendedLocalDate = LocalDate.now(),
+            intendedLocalTime = LocalTime.now(),
             status = DoseStatus.PENDING
         )
 

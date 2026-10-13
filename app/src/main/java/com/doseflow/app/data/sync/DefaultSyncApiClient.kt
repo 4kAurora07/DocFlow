@@ -222,7 +222,7 @@ class DefaultSyncApiClient(
     companion object {
         private const val TAG = "DefaultSyncApiClient"
         const val DEFAULT_BASE_URL = "https://adhivio-med.onrender.com"
-        const val CONNECT_TIMEOUT_MS = 10000
-        const val READ_TIMEOUT_MS = 10000
+        const val CONNECT_TIMEOUT_MS = 30000
+        const val READ_TIMEOUT_MS = 30000
     }
 }

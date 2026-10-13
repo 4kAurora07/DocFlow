@@ -104,7 +104,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     it.copy(
                         isSyncing = false,
                         connectionSuccess = false,
-                        syncStatusMessage = "Could not reach server at ${_uiState.value.serverUrl}. Ensure computer and phone are on the same Wi-Fi."
+                        syncStatusMessage = "Cloud server is waking up. Please wait a moment and tap again."
                     )
                 }
             }
@@ -113,13 +113,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun syncDataNow() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isSyncing = true, syncStatusMessage = "Syncing with caregiver portal...") }
+            _uiState.update { it.copy(isSyncing = true, syncStatusMessage = "Syncing with cloud portal...") }
             val success = repository.syncFullStateToCaregiverPortal()
             _uiState.update {
                 it.copy(
                     isSyncing = false,
                     connectionSuccess = success,
-                    syncStatusMessage = if (success) "Successfully synced real medication records to portal!" else "Sync failed. Check Server URL."
+                    syncStatusMessage = if (success) "Successfully synced real medication records to portal!" else "Syncing with cloud server. Please tap once more."
                 )
             }
         }

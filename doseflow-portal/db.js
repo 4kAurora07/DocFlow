@@ -340,7 +340,27 @@ function getPatientDashboard(patientId) {
     ORDER BY scheduled_epoch_millis ASC
   `).all(patientId);
 
-  const todaySchedule = rawOccurrences.map(occ => {
+  const tz = patient.time_zone || 'UTC';
+
+  // Format today's date string in patient's timezone (YYYY-MM-DD)
+  let todayDateStr;
+  try {
+    todayDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date(now));
+  } catch (e) {
+    todayDateStr = new Date(now).toISOString().split('T')[0];
+  }
+
+  // Filter ONLY occurrences scheduled for today
+  const todayRawOccurrences = rawOccurrences.filter(occ => {
+    try {
+      const occDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date(occ.scheduled_epoch_millis));
+      return occDateStr === todayDateStr;
+    } catch (e) {
+      return Math.abs(occ.scheduled_epoch_millis - now) < (12 * 60 * 60 * 1000);
+    }
+  });
+
+  const todaySchedule = todayRawOccurrences.map(occ => {
     let displayStatus = occ.status;
     let freshnessWarning = null;
 

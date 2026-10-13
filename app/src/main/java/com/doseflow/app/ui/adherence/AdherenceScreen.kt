@@ -59,7 +59,7 @@ fun AdherenceScreen(
                 navigationIcon = {
                     Image(
                         painter = painterResource(id = R.drawable.app_logo),
-                        contentDescription = "Adhivio Logo",
+                        contentDescription = "DoseFlow Logo",
                         modifier = Modifier
                             .padding(start = 16.dp, end = 8.dp)
                             .size(36.dp)

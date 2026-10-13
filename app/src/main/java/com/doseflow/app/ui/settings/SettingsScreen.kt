@@ -87,7 +87,7 @@ fun SettingsScreen(
                 navigationIcon = {
                     Image(
                         painter = painterResource(id = R.drawable.app_logo),
-                        contentDescription = "Adhivio Logo",
+                        contentDescription = "DoseFlow Logo",
                         modifier = Modifier
                             .padding(start = 16.dp, end = 8.dp)
                             .size(36.dp)
@@ -424,7 +424,7 @@ fun SettingsScreen(
 
                         Spacer(modifier = Modifier.height(Dimens.SpacingSmall))
                         Text(
-                            text = "Adhivio connects online over 5G/4G cellular networks and Wi-Fi to synchronize your medication schedules, taken/skipped logs, and daily adherence directly with the secure cloud server.",
+                            text = "DoseFlow connects online over 5G/4G cellular networks and Wi-Fi to synchronize your medication schedules, taken/skipped logs, and daily adherence directly with the secure cloud server.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

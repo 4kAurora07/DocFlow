@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 
 console.log('====================================================');
-console.log(' 🚀 Adhivio Android APK Build System');
+console.log(' 🚀 DoseFlow Android APK Build System');
 console.log('====================================================\n');
 
 const isWindows = process.platform === 'win32';

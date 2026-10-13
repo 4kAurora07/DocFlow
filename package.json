@@ -1,7 +1,7 @@
 {
-  "name": "adhivio-app",
+  "name": "doseflow-app",
   "version": "1.0.0",
-  "description": "Adhivio Medication Adherence App & Caregiver Portal",
+  "description": "DoseFlow Medication Adherence App & Caregiver Portal",
   "bin": {
     "apk": "./build-apk.js",
     "build-apk": "./build-apk.js"

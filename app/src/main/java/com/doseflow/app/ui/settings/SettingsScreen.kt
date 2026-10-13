@@ -383,23 +383,68 @@ fun SettingsScreen(
                             )
                             Spacer(modifier = Modifier.width(Dimens.SpacingSmall))
                             Text(
-                                text = "100% Offline & Private",
+                                text = "Local-First & Offline Engine",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                         Spacer(modifier = Modifier.height(Dimens.SpacingSmall))
                         Text(
-                            text = "DoseFlow operates entirely on this device using local SQLite and Android AlarmManager. No medication schedules, history, or health logs are ever transmitted to any remote servers.",
+                            text = "DoseFlow operates natively on your phone using Android Room SQLite and AlarmManager. Reminders and exact alarms trigger reliably without internet access, in airplane mode, or during signal dropouts.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(modifier = Modifier.height(Dimens.SpacingMedium))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(Dimens.SpacingSmall))
+                            Text(
+                                text = "Encrypted Caregiver Telemetry",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                         Spacer(modifier = Modifier.height(Dimens.SpacingSmall))
                         Text(
-                            text = "Device: ${uiState.manufacturer} ${uiState.model} • Android: ${uiState.androidVersion}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline
+                            text = "Remote monitoring communicates over TLS 1.3 HTTPS exclusively when paired with your explicit 6-character code. The caregiver portal is strictly read-only — all schedule authority remains on this device.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(modifier = Modifier.height(Dimens.SpacingMedium))
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(Dimens.SpacingSmall)) {
+                                Text(
+                                    text = "Device: ${uiState.manufacturer} ${uiState.model}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "OS Version: Android ${uiState.androidVersion}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                Text(
+                                    text = "Database: Room SQLite (WAL Mode, ACID compliant)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                Text(
+                                    text = "Scheduler: AlarmManager Exact & While-Idle",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                        }
                     }
                 }
             }

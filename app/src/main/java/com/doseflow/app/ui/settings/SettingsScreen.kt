@@ -360,6 +360,17 @@ fun SettingsScreen(
                 )
             }
 
+            item {
+                PermissionStatusCard(
+                    title = "Display Over Other Apps (Overlay)",
+                    description = "Allows the medication reminder popup to appear in front of your home screen even when the app is completely closed or not running in the background.",
+                    isGranted = uiState.canDrawOverlays,
+                    actionLabel = "Allow 'Display over other apps'",
+                    onActionClick = { PowerAndPermissionHelper.openOverlaySettings(context) }
+                )
+            }
+
+
             // OEM Aggressive Memory Management
             item {
                 Text(

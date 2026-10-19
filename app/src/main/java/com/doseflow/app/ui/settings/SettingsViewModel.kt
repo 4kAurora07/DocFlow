@@ -16,6 +16,7 @@ data class SettingsUiState(
     val hasExactAlarmPermission: Boolean = true,
     val hasNotificationPermission: Boolean = true,
     val isIgnoringBatteryOptimizations: Boolean = true,
+    val canDrawOverlays: Boolean = true,
     val manufacturer: String = Build.MANUFACTURER,
     val model: String = Build.MODEL,
     val androidVersion: String = "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
@@ -43,6 +44,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val exactAlarm = PowerAndPermissionHelper.canScheduleExactAlarms(app)
         val notifications = PowerAndPermissionHelper.hasNotificationPermission(app)
         val battery = PowerAndPermissionHelper.isIgnoringBatteryOptimizations(app)
+        val overlay = PowerAndPermissionHelper.canDrawOverlays(app)
         val code = repository.getCaregiverCode()
         val url = repository.getServerUrl()
         val name = repository.getPatientName()
@@ -53,6 +55,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 hasExactAlarmPermission = exactAlarm,
                 hasNotificationPermission = notifications,
                 isIgnoringBatteryOptimizations = battery,
+                canDrawOverlays = overlay,
                 caregiverCode = code,
                 serverUrl = url,
                 patientName = name,

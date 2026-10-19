@@ -20,10 +20,12 @@ data class OemAdvice(
 data class AppPermissionStatus(
     val canScheduleExactAlarms: Boolean,
     val areNotificationsEnabled: Boolean,
-    val isIgnoringBatteryOptimizations: Boolean
+    val isIgnoringBatteryOptimizations: Boolean,
+    val canDrawOverlays: Boolean = true
 ) {
     val hasExactAlarmIssue: Boolean get() = !canScheduleExactAlarms
     val hasNotificationIssue: Boolean get() = !areNotificationsEnabled
+    val hasOverlayIssue: Boolean get() = !canDrawOverlays
     val isFullyConfigured: Boolean get() = canScheduleExactAlarms && areNotificationsEnabled
 }
 
@@ -32,7 +34,8 @@ object PowerAndPermissionHelper {
     fun checkCurrentPermissions(context: Context): AppPermissionStatus = AppPermissionStatus(
         canScheduleExactAlarms = canScheduleExactAlarms(context),
         areNotificationsEnabled = areNotificationsEnabled(context),
-        isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations(context)
+        isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations(context),
+        canDrawOverlays = canDrawOverlays(context)
     )
 
     fun canScheduleExactAlarms(context: Context): Boolean {
@@ -99,6 +102,31 @@ object PowerAndPermissionHelper {
 
     fun requestIgnoreBatteryOptimizations(context: Context) {
         context.startActivity(createRequestIgnoreBatteryOptimizationsIntent(context))
+    }
+
+    fun canDrawOverlays(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(context)
+        } else {
+            true
+        }
+    }
+
+    fun createOverlaySettingsIntent(context: Context): Intent {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:${context.packageName}")
+            ).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+        } else {
+            createAppDetailsSettingsIntent(context)
+        }
+    }
+
+    fun openOverlaySettings(context: Context) {
+        context.startActivity(createOverlaySettingsIntent(context))
     }
 
     fun hasNotificationPermission(context: Context): Boolean = areNotificationsEnabled(context)

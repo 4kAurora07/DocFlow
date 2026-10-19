@@ -363,12 +363,17 @@ fun SettingsScreen(
             item {
                 PermissionStatusCard(
                     title = "Display Over Other Apps (Overlay)",
-                    description = "Allows the medication reminder popup to appear in front of your home screen even when the app is completely closed or not running in the background.",
+                    description = if (!uiState.canDrawOverlays) {
+                        "Allows the medication reminder popup to appear in front of your home screen even when the app is completely closed.\n\n💡 Android 13+ Tip: If the switch is greyed out with 'Restricted setting', go to Settings -> Apps -> DoseFlow -> tap the (⋮) menu in top-right corner -> tap 'Allow restricted settings'."
+                    } else {
+                        "Allows the medication reminder popup to appear in front of your home screen even when the app is completely closed or not running in the background."
+                    },
                     isGranted = uiState.canDrawOverlays,
                     actionLabel = "Allow 'Display over other apps'",
                     onActionClick = { PowerAndPermissionHelper.openOverlaySettings(context) }
                 )
             }
+
 
 
             // OEM Aggressive Memory Management

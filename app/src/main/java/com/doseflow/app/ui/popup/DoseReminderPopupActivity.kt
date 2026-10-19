@@ -67,16 +67,8 @@ class DoseReminderPopupActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Configure system to NOT show over lock screen (respect user privacy)
+        // Configure system to turn screen on and show over lockscreen / home screen
         setupScreenWakeAndLockFlags()
-
-        // Respect User Privacy: Suppress popup if device is locked!
-        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
-        if (keyguardManager?.isKeyguardLocked == true) {
-            Log.i(TAG, "Device is locked. Suppressing popup to respect user privacy.")
-            finish()
-            return
-        }
 
         val occurrenceId = intent.getStringExtra(EXTRA_OCCURRENCE_ID) ?: run {
             finish()
@@ -166,12 +158,16 @@ class DoseReminderPopupActivity : ComponentActivity() {
 
     private fun setupScreenWakeAndLockFlags() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(false)
-            setTurnScreenOn(false)
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+            val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+            keyguardManager?.requestDismissKeyguard(this, null)
         } else {
             @Suppress("DEPRECATION")
-            window.clearFlags(
+            window.addFlags(
                 WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
                 WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
             )
         }
@@ -200,13 +196,6 @@ class DoseReminderPopupActivity : ComponentActivity() {
             val now = System.currentTimeMillis()
             if (scheduledEpochMillis > now) {
                 Log.d(TAG, "Scheduled time is in future; not showing popup.")
-                return
-            }
-
-            // Respect User Privacy: Never show over lock screen!
-            val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
-            if (keyguardManager?.isKeyguardLocked == true) {
-                Log.i(TAG, "Device is locked. Suppressing popup launch to respect user privacy.")
                 return
             }
 

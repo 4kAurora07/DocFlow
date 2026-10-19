@@ -22,6 +22,7 @@ data class SettingsUiState(
     val caregiverCode: String? = null,
     val serverUrl: String = "https://adhivio-med.onrender.com",
     val patientName: String = "My Android Device",
+    val homeScreenPopupEnabled: Boolean = true,
     val isSyncing: Boolean = false,
     val syncStatusMessage: String? = null,
     val connectionSuccess: Boolean? = null
@@ -45,6 +46,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val code = repository.getCaregiverCode()
         val url = repository.getServerUrl()
         val name = repository.getPatientName()
+        val popupEnabled = repository.isHomeScreenPopupEnabled()
 
         _uiState.update {
             it.copy(
@@ -53,7 +55,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 isIgnoringBatteryOptimizations = battery,
                 caregiverCode = code,
                 serverUrl = url,
-                patientName = name
+                patientName = name,
+                homeScreenPopupEnabled = popupEnabled
             )
         }
     }
@@ -124,4 +127,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             }
         }
     }
+
+    fun setHomeScreenPopupEnabled(enabled: Boolean) {
+        repository.setHomeScreenPopupEnabled(enabled)
+        _uiState.update { it.copy(homeScreenPopupEnabled = enabled) }
+    }
 }
+

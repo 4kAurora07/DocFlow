@@ -306,6 +306,17 @@ class DoseFlowRepository(private val context: Context) {
         prefs.edit().putString("sync_server_url", url.trim().trimEnd('/')).apply()
     }
 
+    fun isHomeScreenPopupEnabled(): Boolean {
+        val prefs = context.getSharedPreferences("doseflow_prefs", Context.MODE_PRIVATE)
+        return prefs.getBoolean("home_screen_popup_enabled", true)
+    }
+
+    fun setHomeScreenPopupEnabled(enabled: Boolean) {
+        val prefs = context.getSharedPreferences("doseflow_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("home_screen_popup_enabled", enabled).apply()
+    }
+
+
     suspend fun generateAndRegisterCaregiverCode(): String? = withContext(Dispatchers.IO) {
         val client = com.doseflow.app.data.sync.DefaultSyncApiClient(context)
         val patientId = getPatientId()

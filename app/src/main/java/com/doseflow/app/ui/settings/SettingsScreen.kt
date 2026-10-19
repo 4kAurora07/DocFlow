@@ -33,6 +33,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -266,6 +267,56 @@ fun SettingsScreen(
                                 fontWeight = FontWeight.Medium
                             )
                         }
+                    }
+                }
+            }
+
+            // Dose Reminder Preferences
+            item {
+                Text(
+                    text = "Dose Reminder Preferences",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(Dimens.CardCornerRadius),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Dimens.SpacingMedium),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = Dimens.SpacingMedium)
+                        ) {
+                            Text(
+                                text = "Home-Screen Pop-up Alert",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (uiState.homeScreenPopupEnabled)
+                                    "When a dose time has passed, a large floating popup appears in front of the phone's home screen or lock screen so you never forget."
+                                else
+                                    "Disabled: Reminders will only appear in your notifications bar without popping up over the home screen.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = uiState.homeScreenPopupEnabled,
+                            onCheckedChange = { viewModel.setHomeScreenPopupEnabled(it) }
+                        )
                     }
                 }
             }

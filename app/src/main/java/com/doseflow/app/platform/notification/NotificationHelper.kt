@@ -177,10 +177,16 @@ object NotificationHelper {
                 if (appLogoBitmap != null) {
                     setLargeIcon(appLogoBitmap)
                 }
-                // Only show full screen popup over home screen if the scheduled time has arrived or passed
-                if (System.currentTimeMillis() >= scheduledEpochMillis) {
+                // Only show full screen popup over home screen if the scheduled time has arrived or passed and feature is enabled
+                val popupEnabled = try {
+                    com.doseflow.app.data.DoseFlowRepository(context).isHomeScreenPopupEnabled()
+                } catch (_: Exception) {
+                    true
+                }
+                if (System.currentTimeMillis() >= scheduledEpochMillis && popupEnabled) {
                     setFullScreenIntent(fullScreenPendingIntent, true)
                 }
+
             }
             .setColor(0xFF2B5B84.toInt())
             .setContentTitle(title)

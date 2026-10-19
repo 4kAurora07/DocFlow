@@ -101,6 +101,14 @@ class DoseReminderPopupActivity : ComponentActivity() {
 
         val repository = DoseFlowRepository(applicationContext)
 
+        // Check if disabled in user settings
+        if (!repository.isHomeScreenPopupEnabled()) {
+            Log.i(TAG, "Home screen popup is disabled in user settings. Skipping.")
+            finish()
+            return
+        }
+
+
         setContent {
             DoseFlowTheme {
                 Box(

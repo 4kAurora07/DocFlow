@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.doseflow.app.data.DoseFlowRepository
 import com.doseflow.app.data.local.AppDatabase
 import com.doseflow.app.data.local.entity.DoseOccurrenceEntity
 import com.doseflow.app.domain.model.DoseStatus
@@ -92,8 +93,8 @@ class AlarmReceiver : BroadcastReceiver() {
             isEscalation = false
         )
 
-        // Launch home screen popup if scheduled time has arrived or passed
-        if (System.currentTimeMillis() >= occurrence.scheduledEpochMillis) {
+        // Launch home screen popup if scheduled time has arrived or passed and feature is enabled
+        if (System.currentTimeMillis() >= occurrence.scheduledEpochMillis && DoseFlowRepository(context).isHomeScreenPopupEnabled()) {
             com.doseflow.app.ui.popup.DoseReminderPopupActivity.launch(
                 context = context,
                 occurrenceId = occurrenceId,
@@ -144,8 +145,8 @@ class AlarmReceiver : BroadcastReceiver() {
             isEscalation = true
         )
 
-        // Launch home screen popup if scheduled time has arrived or passed
-        if (System.currentTimeMillis() >= occurrence.scheduledEpochMillis) {
+        // Launch home screen popup if scheduled time has arrived or passed and feature is enabled
+        if (System.currentTimeMillis() >= occurrence.scheduledEpochMillis && DoseFlowRepository(context).isHomeScreenPopupEnabled()) {
             com.doseflow.app.ui.popup.DoseReminderPopupActivity.launch(
                 context = context,
                 occurrenceId = occurrenceId,
@@ -230,8 +231,8 @@ class AlarmReceiver : BroadcastReceiver() {
             isEscalation = false
         )
 
-        // Launch home screen popup if scheduled time has arrived or passed
-        if (System.currentTimeMillis() >= occurrence.scheduledEpochMillis) {
+        // Launch home screen popup if scheduled time has arrived or passed and feature is enabled
+        if (System.currentTimeMillis() >= occurrence.scheduledEpochMillis && DoseFlowRepository(context).isHomeScreenPopupEnabled()) {
             com.doseflow.app.ui.popup.DoseReminderPopupActivity.launch(
                 context = context,
                 occurrenceId = occurrenceId,

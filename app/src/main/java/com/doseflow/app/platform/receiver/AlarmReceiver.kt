@@ -92,6 +92,19 @@ class AlarmReceiver : BroadcastReceiver() {
             isEscalation = false
         )
 
+        // Launch home screen popup if scheduled time has arrived or passed
+        if (System.currentTimeMillis() >= occurrence.scheduledEpochMillis) {
+            com.doseflow.app.ui.popup.DoseReminderPopupActivity.launch(
+                context = context,
+                occurrenceId = occurrenceId,
+                medicineName = medicineName,
+                dosage = dosage,
+                unit = unit,
+                instructions = instructions,
+                scheduledEpochMillis = occurrence.scheduledEpochMillis
+            )
+        }
+
         // Schedule escalation in 15 minutes (default)
         val now = Instant.now()
         val escalationTime = now.plus(DEFAULT_ESCALATION_DELAY).toEpochMilli()
@@ -130,6 +143,19 @@ class AlarmReceiver : BroadcastReceiver() {
             scheduledEpochMillis = occurrence.scheduledEpochMillis,
             isEscalation = true
         )
+
+        // Launch home screen popup if scheduled time has arrived or passed
+        if (System.currentTimeMillis() >= occurrence.scheduledEpochMillis) {
+            com.doseflow.app.ui.popup.DoseReminderPopupActivity.launch(
+                context = context,
+                occurrenceId = occurrenceId,
+                medicineName = medicine?.name ?: "Medicine",
+                dosage = medicine?.dosage ?: "",
+                unit = medicine?.unit ?: "",
+                instructions = medicine?.instructions ?: "",
+                scheduledEpochMillis = occurrence.scheduledEpochMillis
+            )
+        }
 
         // Schedule auto-missed transition after a further 30 minutes
         val now = Instant.now()
@@ -203,6 +229,19 @@ class AlarmReceiver : BroadcastReceiver() {
             scheduledEpochMillis = occurrence.scheduledEpochMillis,
             isEscalation = false
         )
+
+        // Launch home screen popup if scheduled time has arrived or passed
+        if (System.currentTimeMillis() >= occurrence.scheduledEpochMillis) {
+            com.doseflow.app.ui.popup.DoseReminderPopupActivity.launch(
+                context = context,
+                occurrenceId = occurrenceId,
+                medicineName = medicine?.name ?: "Medicine",
+                dosage = medicine?.dosage ?: "",
+                unit = medicine?.unit ?: "",
+                instructions = medicine?.instructions ?: "",
+                scheduledEpochMillis = occurrence.scheduledEpochMillis
+            )
+        }
 
         // Schedule escalation in 15 minutes
         val escalationTime = Instant.now().plus(DEFAULT_ESCALATION_DELAY).toEpochMilli()

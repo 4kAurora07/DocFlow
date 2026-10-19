@@ -32,9 +32,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -45,15 +42,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.doseflow.app.domain.model.DoseStatus
 import com.doseflow.app.platform.util.PowerAndPermissionHelper
 import com.doseflow.app.theme.Dimens
 import com.doseflow.app.ui.components.DoseCard
-import com.doseflow.app.ui.components.ElderlyDoseAlertPopup
 import com.doseflow.app.ui.components.EmptyStateView
 import com.doseflow.app.ui.components.PermissionWarningBanner
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,18 +61,6 @@ fun TimelineScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    var dismissedDoseId by rememberSaveable { mutableStateOf<String?>(null) }
-    val nowEpoch = System.currentTimeMillis()
-
-    // Identify active due or overdue dose for today
-    val dueDose = uiState.doses.firstOrNull { item ->
-        val occ = item.occurrence
-        occ.id != dismissedDoseId && (
-            (occ.status == DoseStatus.PENDING && occ.scheduledTime.toEpochMilli() <= nowEpoch + 5 * 60 * 1000) ||
-            (occ.status == DoseStatus.SNOOZED && (occ.snoozedUntil?.toEpochMilli() ?: 0L) <= nowEpoch)
-        )
-    }
-
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -90,38 +72,6 @@ fun TimelineScreen(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
-    }
-
-    if (dueDose != null) {
-        val timeFormatter = DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault())
-        val scheduledTimeStr = try {
-            timeFormatter.format(dueDose.occurrence.scheduledTime)
-        } catch (_: Exception) {
-            ""
-        }
-
-        ElderlyDoseAlertPopup(
-            medicineName = dueDose.medicine.name,
-            dosage = dueDose.medicine.dosage,
-            unit = dueDose.medicine.unit,
-            instructions = dueDose.medicine.instructions,
-            scheduledTimeText = scheduledTimeStr,
-            onTakeClick = {
-                viewModel.markTaken(dueDose.occurrence.id)
-                dismissedDoseId = dueDose.occurrence.id
-            },
-            onSnoozeClick = {
-                viewModel.snooze(dueDose.occurrence.id)
-                dismissedDoseId = dueDose.occurrence.id
-            },
-            onSkipClick = {
-                viewModel.markSkipped(dueDose.occurrence.id)
-                dismissedDoseId = dueDose.occurrence.id
-            },
-            onDismiss = {
-                dismissedDoseId = dueDose.occurrence.id
-            }
-        )
     }
 
     val todayFormatted = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d"))

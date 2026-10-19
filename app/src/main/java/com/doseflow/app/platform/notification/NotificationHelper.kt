@@ -154,11 +154,32 @@ object NotificationHelper {
             null
         }
 
+        // Full screen intent to popup over phone home screen / lock screen if time has passed
+        val fullScreenIntent = Intent(context, com.doseflow.app.ui.popup.DoseReminderPopupActivity::class.java).apply {
+            putExtra(com.doseflow.app.ui.popup.DoseReminderPopupActivity.EXTRA_OCCURRENCE_ID, occurrenceId)
+            putExtra(com.doseflow.app.ui.popup.DoseReminderPopupActivity.EXTRA_MEDICINE_NAME, medicineName)
+            putExtra(com.doseflow.app.ui.popup.DoseReminderPopupActivity.EXTRA_DOSAGE, dosage)
+            putExtra(com.doseflow.app.ui.popup.DoseReminderPopupActivity.EXTRA_UNIT, unit)
+            putExtra(com.doseflow.app.ui.popup.DoseReminderPopupActivity.EXTRA_INSTRUCTIONS, instructions)
+            putExtra(com.doseflow.app.ui.popup.DoseReminderPopupActivity.EXTRA_SCHEDULED_TIME, scheduledEpochMillis)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val fullScreenPendingIntent = PendingIntent.getActivity(
+            context,
+            notificationId * 10 + 4,
+            fullScreenIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(context, CHANNEL_DOSES_HIGH)
             .setSmallIcon(R.drawable.ic_notification)
             .apply {
                 if (appLogoBitmap != null) {
                     setLargeIcon(appLogoBitmap)
+                }
+                // Only show full screen popup over home screen if the scheduled time has arrived or passed
+                if (System.currentTimeMillis() >= scheduledEpochMillis) {
+                    setFullScreenIntent(fullScreenPendingIntent, true)
                 }
             }
             .setColor(0xFF2B5B84.toInt())

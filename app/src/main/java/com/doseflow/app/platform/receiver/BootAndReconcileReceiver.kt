@@ -5,8 +5,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.doseflow.app.data.DoseFlowRepository
 import com.doseflow.app.data.local.AppDatabase
 import com.doseflow.app.data.local.entity.DoseOccurrenceEntity
+import com.doseflow.app.domain.model.DoseStatus
 import com.doseflow.app.domain.model.SystemAppClock
 import com.doseflow.app.domain.scheduling.ScheduleReconciler
 import com.doseflow.app.platform.alarm.AlarmScheduler
@@ -24,7 +26,11 @@ class BootAndReconcileReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                reconcileAndReschedule(context, action)
+                if (action == Intent.ACTION_USER_PRESENT) {
+                    handleUserUnlock(context)
+                } else {
+                    reconcileAndReschedule(context, action)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Error executing reconciliation for $action: ${e.message}", e)
             } finally {
@@ -87,5 +93,33 @@ class BootAndReconcileReceiver : BroadcastReceiver() {
             AlarmReceiver.rescheduleNextChainedAlarm(db, alarmScheduler)
             Log.i(TAG, "Reconciliation completed successfully for reason='$reason'.")
         }
+
+        private suspend fun handleUserUnlock(context: Context) {
+            val repository = DoseFlowRepository(context)
+            if (!repository.isHomeScreenPopupEnabled()) return
+
+            val db = AppDatabase.getInstance(context)
+            val now = System.currentTimeMillis()
+            val occurrences = db.doseOccurrenceDao().getAllOccurrences()
+            val overdueDose = occurrences.firstOrNull { occ ->
+                (occ.status == DoseStatus.PENDING.name || occ.status == DoseStatus.SNOOZED.name) &&
+                now >= occ.scheduledEpochMillis &&
+                (now - occ.scheduledEpochMillis) < 3 * 60 * 60 * 1000L // within 3 hours grace window
+            }
+
+            if (overdueDose != null) {
+                val med = db.medicineDao().getMedicineById(overdueDose.medicineId)
+                com.doseflow.app.ui.popup.DoseReminderPopupActivity.launch(
+                    context = context,
+                    occurrenceId = overdueDose.id,
+                    medicineName = med?.name ?: "Medicine",
+                    dosage = med?.dosage ?: "",
+                    unit = med?.unit ?: "",
+                    instructions = med?.instructions ?: "",
+                    scheduledEpochMillis = overdueDose.scheduledEpochMillis
+                )
+            }
+        }
     }
 }
+

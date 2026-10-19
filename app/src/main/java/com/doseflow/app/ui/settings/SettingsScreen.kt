@@ -306,7 +306,7 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = if (uiState.homeScreenPopupEnabled)
-                                    "When a dose time has passed, a large floating popup appears in front of the phone's home screen or lock screen so you never forget."
+                                    "When a dose time has passed and you are on your home screen (or unlock your phone), a floating popup appears in front of the screen. (Never shown on the lock screen to protect your privacy)."
                                 else
                                     "Disabled: Reminders will only appear in your notifications bar without popping up over the home screen.",
                                 style = MaterialTheme.typography.bodySmall,

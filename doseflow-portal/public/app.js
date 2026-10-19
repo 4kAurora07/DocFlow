@@ -1,25 +1,27 @@
 /**
- * DoseFlow Caregiver Portal — Client Application
- * Real Caregiver Auth, App Pairing Code Matching, and Live Freshness Guard
+ * DoseFlow Caregiver Portal — Client Application v2.0
+ * Direct Code Pairing, Cookie & LocalStorage Persistence, Instant Zero-Delay Cache,
+ * Automatic Real-Time Live Sync, and Elderly/Caregiver Usability.
  */
 
 (function () {
   'use strict';
 
+  // API Base Resolution:
+  // When hosted on GitHub Pages (*.github.io), Vercel, or Netlify, route API requests to the cloud server.
+  // When running locally, use relative path.
+  const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? ''
+    : 'https://adhivio-med.onrender.com';
+
   // State
-  let caregiverToken = localStorage.getItem('doseflow_token') || null;
-  let currentCaregiver = null;
-  let linkedPatient = null;
+  let pairingCode = getCookie('doseflow_code') || localStorage.getItem('doseflow_code') || null;
   let cachedDashboardData = null;
   let autoRefreshTimer = null;
+  let isFetching = false;
+  let lastKnownStatuses = {};
 
   // DOM Elements - Modals & Forms
-  const authModal = document.getElementById('authModal');
-  const authForm = document.getElementById('authForm');
-  const inputEmail = document.getElementById('inputEmail');
-  const inputPassword = document.getElementById('inputPassword');
-  const authError = document.getElementById('authError');
-
   const pairingModal = document.getElementById('pairingModal');
   const pairingForm = document.getElementById('pairingForm');
   const inputPairingCode = document.getElementById('inputPairingCode');
@@ -27,12 +29,13 @@
   const btnCancelPairing = document.getElementById('btnCancelPairing');
 
   // Dashboard Header Elements
+  const liveSyncPill = document.getElementById('liveSyncPill');
+  const liveSyncStatusText = document.getElementById('liveSyncStatusText');
   const patientAvatarDisplay = document.getElementById('patientAvatarDisplay');
   const patientNameDisplay = document.getElementById('patientNameDisplay');
+  const codePillDisplay = document.getElementById('codePillDisplay');
   const patientDeviceDisplay = document.getElementById('patientDeviceDisplay');
-  const caregiverEmailDisplay = document.getElementById('caregiverEmailDisplay');
   const btnSwitchPatient = document.getElementById('btnSwitchPatient');
-  const btnSignOut = document.getElementById('btnSignOut');
   const btnManualRefresh = document.getElementById('btnManualRefresh');
 
   // Dashboard Body Elements
@@ -42,6 +45,7 @@
   const historyTableBody = document.getElementById('historyTableBody');
   const footerSyncStatus = document.getElementById('footerSyncStatus');
   const btnExportCsv = document.getElementById('btnExportCsv');
+  const toastContainer = document.getElementById('toastContainer');
 
   // Adherence Gauge Elements
   const sevenDayValue = document.getElementById('sevenDayValue');
@@ -56,20 +60,49 @@
   const thirtyDaySkipped = document.getElementById('thirtyDaySkipped');
   const thirtyDayMissed = document.getElementById('thirtyDayMissed');
 
-  // ======================== API HELPERS ========================
+  // ======================== COOKIE HELPERS ========================
 
-  async function apiRequest(endpoint, method = 'GET', body = null) {
-    const headers = { 'Content-Type': 'application/json' };
-    if (caregiverToken) {
-      headers['Authorization'] = `Bearer ${caregiverToken}`;
+  function setCookie(name, value, days = 365) {
+    const expires = new Date(Date.now() + days * 864e5).toUTCString();
+    document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+  }
+
+  function getCookie(name) {
+    const nameEQ = encodeURIComponent(name) + '=';
+    const cookies = document.cookie.split(';');
+    for (let c of cookies) {
+      c = c.trim();
+      if (c.indexOf(nameEQ) === 0) {
+        return decodeURIComponent(c.substring(nameEQ.length));
+      }
     }
-    const config = { method, headers };
-    if (body) {
-      config.body = JSON.stringify(body);
-    }
-    const response = await fetch(endpoint, config);
-    const data = await response.json().catch(() => ({}));
-    return { ok: response.ok, status: response.status, data };
+    return null;
+  }
+
+  function deleteCookie(name) {
+    document.cookie = `${encodeURIComponent(name)}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
+  }
+
+  // ======================== TOAST NOTIFICATIONS ========================
+
+  function showToast(title, message, type = 'success') {
+    if (!toastContainer) return;
+    const toast = document.createElement('div');
+    toast.className = `toast-item toast-${type}`;
+    toast.innerHTML = `
+      <div class="toast-icon">
+        ${type === 'success' ? '✓' : 'ℹ'}
+      </div>
+      <div class="toast-body">
+        <div class="toast-title">${escapeHtml(title)}</div>
+        <div class="toast-desc">${escapeHtml(message)}</div>
+      </div>
+    `;
+    toastContainer.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add('toast-fade-out');
+      setTimeout(() => toast.remove(), 400);
+    }, 4500);
   }
 
   // ======================== INITIALIZATION ========================
@@ -78,35 +111,39 @@
     updateDateSubtitle();
     bindEvents();
 
-    if (!caregiverToken) {
-      showAuthModal();
+    // Check if code was passed in URL query param, e.g. ?code=DF-7821
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryCode = urlParams.get('code');
+    if (queryCode && queryCode.trim()) {
+      pairingCode = queryCode.trim().toUpperCase();
+      savePairingCode(pairingCode);
+      // Clean query parameter from URL without reload
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    if (!pairingCode) {
+      showPairingModal(false);
       return;
     }
 
-    // Verify token with backend
-    try {
-      const { ok, data } = await apiRequest('/api/auth/me');
-      if (ok && data.caregiver) {
-        currentCaregiver = data.caregiver;
-        linkedPatient = data.linkedPatient;
-        caregiverEmailDisplay.textContent = currentCaregiver.email;
-
-        if (linkedPatient) {
-          hideAuthModal();
-          hidePairingModal();
-          await loadDashboard();
-        } else {
-          hideAuthModal();
-          showPairingModal(false);
-        }
-      } else {
-        // Token expired or invalid
-        signOut();
-      }
-    } catch (err) {
-      console.error('Initialization error:', err);
-      showAuthModal('Could not connect to DoseFlow server. Please check your network.');
+    // 1. Instant Rendering from cache if available (0 seconds delay!)
+    const cached = localStorage.getItem(`doseflow_cache_${pairingCode}`);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        cachedDashboardData = parsed;
+        renderDashboard(parsed, true);
+        setSyncStatus('Showing saved data • Updating live...', 'syncing');
+      } catch (_e) {}
     }
+
+    hidePairingModal();
+
+    // 2. Load fresh data from server
+    await loadDashboard(true);
+
+    // 3. Start auto-refresh polling every 5 seconds for live device updates
+    startAutoRefresh();
   }
 
   function updateDateSubtitle() {
@@ -117,141 +154,182 @@
     }
   }
 
-  // ======================== AUTH & PAIRING FLOW ========================
+  function savePairingCode(code) {
+    const clean = code.trim().toUpperCase();
+    pairingCode = clean;
+    setCookie('doseflow_code', clean, 365);
+    localStorage.setItem('doseflow_code', clean);
+  }
 
-  function showAuthModal(errMsg = null) {
-    authModal.style.display = 'flex';
-    if (errMsg) {
-      authError.textContent = errMsg;
-      authError.style.display = 'block';
-    } else {
-      authError.style.display = 'none';
+  function clearPairingCode() {
+    if (pairingCode) {
+      localStorage.removeItem(`doseflow_cache_${pairingCode}`);
     }
+    pairingCode = null;
+    deleteCookie('doseflow_code');
+    localStorage.removeItem('doseflow_code');
+    stopAutoRefresh();
   }
 
-  function hideAuthModal() {
-    authModal.style.display = 'none';
-  }
+  // ======================== PAIRING MODAL FLOW ========================
 
   function showPairingModal(canCancel = false) {
     pairingModal.style.display = 'flex';
     pairingError.style.display = 'none';
     inputPairingCode.value = '';
-    btnCancelPairing.style.display = canCancel ? 'inline-block' : 'none';
+    btnCancelPairing.style.display = canCancel && pairingCode ? 'inline-block' : 'none';
+    setTimeout(() => inputPairingCode.focus(), 150);
   }
 
   function hidePairingModal() {
     pairingModal.style.display = 'none';
   }
 
-  async function handleLogin(email, password) {
-    authError.style.display = 'none';
-    const { ok, status, data } = await apiRequest('/api/auth/login', 'POST', { email, password });
-    if (!ok) {
-      authError.textContent = data.error || 'Authentication failed. Please verify credentials.';
-      authError.style.display = 'block';
-      return;
-    }
-
-    caregiverToken = data.token;
-    localStorage.setItem('doseflow_token', caregiverToken);
-    currentCaregiver = data.caregiver;
-    linkedPatient = data.linkedPatient;
-    caregiverEmailDisplay.textContent = currentCaregiver.email;
-
-    hideAuthModal();
-
-    if (linkedPatient) {
-      await loadDashboard();
-    } else {
-      showPairingModal(false);
-    }
-  }
-
-  async function handlePairingCode(code) {
+  async function handlePairingCodeSubmit(code) {
     pairingError.style.display = 'none';
-    const cleanCode = code.trim().toUpperCase();
+    const cleanCode = (code || '').trim().toUpperCase();
     if (!cleanCode) {
-      pairingError.textContent = 'Please enter a valid pairing code.';
+      pairingError.textContent = 'Please enter a valid pairing code from the app.';
       pairingError.style.display = 'block';
       return;
     }
 
-    const { ok, data } = await apiRequest('/api/pairing/link', 'POST', { code: cleanCode });
-    if (!ok) {
-      pairingError.textContent = data.error || 'Invalid or expired code. Please verify the code in the patient mobile app.';
+    const btnSubmit = document.getElementById('btnSubmitPairing');
+    const originalText = btnSubmit.innerHTML;
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = `<span>Connecting to device...</span>`;
+
+    try {
+      const response = await fetch(`${API_BASE}/api/dashboard/${encodeURIComponent(cleanCode)}`);
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Code not recognized yet. Please confirm the code shown in the DoseFlow app.');
+      }
+
+      // Code validated! Save permanently
+      savePairingCode(cleanCode);
+      hidePairingModal();
+
+      // Cache and render immediately
+      cachedDashboardData = data;
+      localStorage.setItem(`doseflow_cache_${cleanCode}`, JSON.stringify(data));
+      renderDashboard(data);
+      showToast('Connected!', `Connected live to ${data.patient?.name || 'patient'}'s DoseFlow app.`);
+
+      startAutoRefresh();
+    } catch (err) {
+      pairingError.textContent = err.message || 'Could not connect. Please check network and retry.';
       pairingError.style.display = 'block';
-      return;
+    } finally {
+      btnSubmit.disabled = false;
+      btnSubmit.innerHTML = originalText;
     }
-
-    // Code matched! Patient linked immediately
-    linkedPatient = data.patient;
-    hidePairingModal();
-
-    if (data.dashboard) {
-      cachedDashboardData = data.dashboard;
-      renderDashboard(data.dashboard);
-    } else {
-      await loadDashboard();
-    }
-
-    startAutoRefresh();
-  }
-
-  function signOut() {
-    if (caregiverToken) {
-      apiRequest('/api/auth/logout', 'POST').catch(() => {});
-    }
-    caregiverToken = null;
-    currentCaregiver = null;
-    linkedPatient = null;
-    cachedDashboardData = null;
-    localStorage.removeItem('doseflow_token');
-    stopAutoRefresh();
-    hidePairingModal();
-    showAuthModal();
   }
 
   // ======================== DASHBOARD LOADING & RENDERING ========================
 
-  async function loadDashboard() {
+  async function loadDashboard(isInitial = false) {
+    if (!pairingCode || isFetching) return;
+    isFetching = true;
+
     try {
-      const { ok, status, data } = await apiRequest('/api/dashboard');
-      if (status === 401) {
-        signOut();
+      const response = await fetch(`${API_BASE}/api/dashboard/${encodeURIComponent(pairingCode)}`);
+      const data = await response.json().catch(() => ({}));
+
+      if (response.status === 401 || response.status === 404) {
+        // Code is invalid or expired
+        if (isInitial) {
+          clearPairingCode();
+          showPairingModal(false);
+          pairingError.textContent = 'Saved code is invalid or has expired. Please enter the active code from your app.';
+          pairingError.style.display = 'block';
+        }
         return;
       }
-      if (!ok) {
-        throw new Error(data.error || `HTTP ${status}`);
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}`);
       }
 
-      if (data.hasPatient === false) {
-        showPairingModal(false);
-        return;
-      }
+      // Detect real-time dose status transitions to notify caregiver
+      detectDoseTransitions(data.todaySchedule || []);
 
+      // Cache fresh data in localStorage
+      localStorage.setItem(`doseflow_cache_${pairingCode}`, JSON.stringify(data));
       cachedDashboardData = data;
+
       renderDashboard(data);
-      startAutoRefresh();
+      setSyncStatus('Auto-Sync Active (Live)', 'live');
+
+      if (footerSyncStatus) {
+        footerSyncStatus.textContent = `Last synchronized: ${new Date().toLocaleTimeString()}`;
+      }
     } catch (err) {
-      console.error('Failed to load dashboard:', err);
+      console.warn('Dashboard sync polling notice:', err.message);
+      setSyncStatus('Connecting to device...', 'syncing');
+    } finally {
+      isFetching = false;
     }
   }
 
-  function renderDashboard(data) {
+  function detectDoseTransitions(newSchedule) {
+    newSchedule.forEach((occ) => {
+      const prevStatus = lastKnownStatuses[occ.id];
+      if (prevStatus && prevStatus !== 'TAKEN' && occ.displayStatus === 'TAKEN') {
+        // Dose was just taken on the mobile phone!
+        showToast(
+          'Medicine Taken!',
+          `✓ ${occ.medicineName} was just confirmed as taken!`,
+          'success'
+        );
+      }
+      lastKnownStatuses[occ.id] = occ.displayStatus;
+    });
+  }
+
+  function setSyncStatus(text, state) {
+    if (liveSyncStatusText) {
+      liveSyncStatusText.textContent = text;
+    }
+    if (liveSyncPill) {
+      liveSyncPill.className = `live-sync-pill status-${state}`;
+    }
+  }
+
+  function renderDashboard(data, isFromCache = false) {
     if (!data || !data.patient) return;
 
     // 1. Patient Header Info
     const patientName = data.patient.name || 'Patient';
-    patientNameDisplay.textContent = patientName;
-    const initials = patientName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'PT';
+    if (patientNameDisplay) {
+      patientNameDisplay.textContent = patientName;
+    }
+
+    const initials = patientName
+      .split(' ')
+      .filter(Boolean)
+      .map((n) => n[0])
+      .join('')
+      .substring(0, 2)
+      .toUpperCase() || 'PT';
+
     if (patientAvatarDisplay) {
       patientAvatarDisplay.textContent = initials;
     }
-    patientDeviceDisplay.textContent = `${data.patient.primaryDevice || 'Android Device'} • ${data.patient.timeZone || 'Local Time'}`;
 
-    // 2. Strict Freshness Guard Banner
-    renderFreshnessBanner(data.deviceStatus, data.patient.name);
+    if (codePillDisplay) {
+      codePillDisplay.textContent = `Code: ${pairingCode || '--'}`;
+    }
+
+    if (patientDeviceDisplay) {
+      const device = data.patient.primaryDevice || 'Android Device';
+      const tz = data.patient.timeZone || 'Local';
+      patientDeviceDisplay.textContent = `${device} • ${tz}`;
+    }
+
+    // 2. Freshness Guard Banner
+    renderFreshnessBanner(data.deviceStatus, patientName, isFromCache);
 
     // 3. Today's Timeline Schedule
     renderTimeline(data.todaySchedule || []);
@@ -261,21 +339,16 @@
 
     // 5. Recent Dose Logs
     renderHistoryTable(data.historyLogs || []);
-
-    // 6. Footer sync status
-    if (footerSyncStatus) {
-      footerSyncStatus.textContent = `Last synchronized: ${new Date(data.serverTimestamp || Date.now()).toLocaleTimeString()}`;
-    }
   }
 
-  function renderFreshnessBanner(status, patientName) {
+  function renderFreshnessBanner(status, patientName, isFromCache) {
     if (!freshnessBannerContainer) return;
-    if (!status) {
+    if (!status && !isFromCache) {
       freshnessBannerContainer.innerHTML = '';
       return;
     }
 
-    if (status.isStale) {
+    if (status && status.isStale) {
       freshnessBannerContainer.innerHTML = `
         <div class="freshness-banner banner-stale" role="alert">
           <div class="banner-icon-col">
@@ -286,10 +359,9 @@
             </svg>
           </div>
           <div class="banner-content">
-            <strong class="banner-title">STALE DATA WARNING: ${patientName}'s device is offline (${status.stalenessMinutes}m lag)</strong>
+            <strong class="banner-title">DEVICE OFFLINE: ${patientName}'s phone has not synced recently (${status.stalenessMinutes}m lag)</strong>
             <p class="banner-desc">
-              No sync heartbeat received in over 15 minutes. Unconfirmed doses are protected under the 
-              <strong>Strict Freshness Contract</strong> and flagged as <em>Awaiting Sync</em> rather than assumed taken or missed.
+              Unconfirmed doses are protected and marked as <em>Awaiting Sync</em> until the phone reconnects to prevent false alerts.
             </p>
           </div>
         </div>
@@ -301,9 +373,9 @@
             <span class="live-pulse"></span>
           </div>
           <div class="banner-content">
-            <strong class="banner-title">LIVE CONNECTION: Sync Heartbeat Fresh (&lt;15m)</strong>
+            <strong class="banner-title">LIVE CONNECTION: Patient Device Connected</strong>
             <p class="banner-desc">
-              Connected directly to ${patientName}'s mobile Room SQLite outbox. Timestamps reflect local device confirmation.
+              Connected directly to ${patientName}'s DoseFlow app. Dose actions taken by your loved one update automatically.
             </p>
           </div>
         </div>
@@ -324,7 +396,7 @@
             <line x1="3" y1="10" x2="21" y2="10"/>
           </svg>
           <div class="empty-state-title">No Medications Scheduled Today</div>
-          <p class="empty-state-desc">When you add medications in the DoseFlow mobile app, they will sync and appear here immediately.</p>
+          <p class="empty-state-desc">When medications are added in the DoseFlow mobile app, they will automatically appear here.</p>
         </div>
       `;
       return;
@@ -336,8 +408,8 @@
       const statusClass = getStatusClass(occ.displayStatus);
       const statusBadge = getStatusBadge(occ.displayStatus, isAwaitingSync);
 
-      const actionTimeText = occ.actionTimestamp 
-        ? `<span class="dose-logged-at">Logged at ${new Date(occ.actionTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`
+      const actionTimeText = occ.actionTimestamp
+        ? `<span class="dose-logged-at">✓ Confirmed at ${new Date(occ.actionTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`
         : '';
 
       html += `
@@ -404,7 +476,7 @@
       case 'MISSED':
         return `<span class="status-badge badge-missed">Missed</span>`;
       case 'SNOOZED':
-        return `<span class="status-badge badge-snoozed">Snoozed</span>`;
+        return `<span class="status-badge badge-snoozed">⏰ Snoozed</span>`;
       default:
         return `<span class="status-badge badge-pending">Due</span>`;
     }
@@ -445,7 +517,7 @@
     }
 
     let html = '';
-    logs.forEach(log => {
+    logs.forEach((log) => {
       const badge = log.status === 'TAKEN'
         ? `<span class="table-badge badge-taken">Taken</span>`
         : (log.status === 'SKIPPED'
@@ -466,16 +538,16 @@
     historyTableBody.innerHTML = html;
   }
 
-  // ======================== AUTO REFRESH & SIMULATION ========================
+  // ======================== AUTO REFRESH ========================
 
   function startAutoRefresh() {
     stopAutoRefresh();
-    // Poll every 10 seconds for real-time app sync updates
+    // Poll every 5 seconds for real-time mobile updates
     autoRefreshTimer = setInterval(() => {
-      if (caregiverToken && linkedPatient) {
-        loadDashboard();
+      if (pairingCode && !isFetching) {
+        loadDashboard(false);
       }
-    }, 10000);
+    }, 5000);
   }
 
   function stopAutoRefresh() {
@@ -489,7 +561,7 @@
     if (!cachedDashboardData || !cachedDashboardData.historyLogs) return;
     const logs = cachedDashboardData.historyLogs;
     let csv = 'Date,Medication,Scheduled Time,Recorded Time,Status\n';
-    logs.forEach(l => {
+    logs.forEach((l) => {
       csv += `"${l.date}","${l.medicine}","${l.scheduled}","${l.recorded}","${l.status}"\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -504,37 +576,28 @@
   // ======================== EVENT BINDINGS ========================
 
   function bindEvents() {
-    // Auth Form
-    authForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      handleLogin(inputEmail.value, inputPassword.value);
-    });
-
-    // Pairing Form
+    // Pairing Form Submission
     pairingForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      handlePairingCode(inputPairingCode.value);
+      handlePairingCodeSubmit(inputPairingCode.value);
     });
 
     btnCancelPairing.addEventListener('click', () => {
-      if (linkedPatient) {
+      if (pairingCode) {
         hidePairingModal();
       }
     });
 
-    // Switch Patient & Sign Out
+    // Switch Patient / Change Code
     btnSwitchPatient.addEventListener('click', () => {
       showPairingModal(true);
     });
 
-    btnSignOut.addEventListener('click', () => {
-      signOut();
-    });
-
+    // Manual Refresh Button
     btnManualRefresh.addEventListener('click', async () => {
       btnManualRefresh.classList.add('spinning');
-      await loadDashboard();
-      setTimeout(() => btnManualRefresh.classList.remove('spinning'), 500);
+      await loadDashboard(false);
+      setTimeout(() => btnManualRefresh.classList.remove('spinning'), 600);
     });
 
     if (btnExportCsv) {

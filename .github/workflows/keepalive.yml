@@ -1,0 +1,15 @@
+name: Keepalive Cloud Backend Ping
+
+on:
+  schedule:
+    # Run every 10 minutes to prevent Render free-tier idle spin-down
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping DoseFlow Backend
+        run: |
+          curl -s -f -m 15 https://adhivio-med.onrender.com/health || echo "Server ping attempted"

@@ -1,0 +1,7 @@
+[build]
+  publish = "doseflow-portal/public"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

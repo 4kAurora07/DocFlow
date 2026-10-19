@@ -11,6 +11,7 @@ import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import android.graphics.BitmapFactory
 import com.doseflow.app.MainActivity
 import com.doseflow.app.R
 import com.doseflow.app.platform.receiver.NotificationActionReceiver
@@ -147,22 +148,52 @@ object NotificationHelper {
             }
         }
 
+        val appLogoBitmap = try {
+            BitmapFactory.decodeResource(context.resources, R.drawable.app_logo)
+        } catch (_: Exception) {
+            null
+        }
+
         val notification = NotificationCompat.Builder(context, CHANNEL_DOSES_HIGH)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(R.drawable.ic_notification)
+            .apply {
+                if (appLogoBitmap != null) {
+                    setLargeIcon(appLogoBitmap)
+                }
+            }
+            .setColor(0xFF2B5B84.toInt())
             .setContentTitle(title)
             .setContentText(detailText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(
-                if (detailText.isNotBlank()) "$detailText\nScheduled for dose delivery." else "Dose reminder."
+                if (detailText.isNotBlank()) "$detailText\n\nTap '✓ I TOOK IT' below once consumed." else "Time to take your scheduled dose. Tap below when taken."
             ))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(false)
             .setOngoing(true)
             .setContentIntent(contentPendingIntent)
-            .addAction(android.R.drawable.checkbox_on_background, "Taken", takenPendingIntent)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Skip", skipPendingIntent)
-            .addAction(android.R.drawable.ic_popup_sync, "Snooze 10m", snoozePendingIntent)
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    R.drawable.ic_notification,
+                    "✓ I TOOK IT",
+                    takenPendingIntent
+                ).build()
+            )
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    android.R.drawable.ic_popup_sync,
+                    "⏰ SNOOZE 10M",
+                    snoozePendingIntent
+                ).build()
+            )
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    android.R.drawable.ic_menu_close_clear_cancel,
+                    "✕ SKIP DOSE",
+                    skipPendingIntent
+                ).build()
+            )
             .build()
 
         return try {

@@ -276,6 +276,21 @@ async function runTests() {
       assert.strictEqual(dashRes.body.todaySchedule[0].medicineName, 'Amlodipine');
     });
 
+    await test('Direct Code Dashboard Access & Health Check (No Email Login Required)', async () => {
+      // 1. Check /health endpoint
+      const healthRes = await makeRequest('GET', '/health');
+      assert.strictEqual(healthRes.status, 200);
+      assert.strictEqual(healthRes.body.status, 'ok');
+
+      // 2. Direct code dashboard access via GET /api/dashboard/DF-9999
+      const directRes = await makeRequest('GET', '/api/dashboard/DF-9999');
+      assert.strictEqual(directRes.status, 200);
+      assert.strictEqual(directRes.body.patient.name, 'Jane Doe');
+      assert.strictEqual(directRes.body.todaySchedule.length >= 1, true);
+      assert.strictEqual(directRes.body.todaySchedule[0].medicineName, 'Amlodipine');
+      assert.strictEqual(directRes.body.isReadOnly, true);
+    });
+
   } finally {
     server.close();
   }

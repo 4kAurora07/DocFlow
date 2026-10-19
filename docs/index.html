@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DoseFlow — Caregiver Adherence Portal</title>
+  <meta name="description" content="Read-only remote caregiver portal for DoseFlow medication adherence and schedule monitoring with automatic real-time sync.">
+  <link rel="icon" type="image/svg+xml" href="logo.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Toast Notification Container for Real-Time Dose Confirmations -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <!-- PATIENT PAIRING MODAL (Shown only once when no code is stored) -->
+  <div class="modal-backdrop" id="pairingModal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="brand-badge brand-blue">
+          <img src="logo.svg" alt="DoseFlow Logo" class="brand-badge-img" width="28" height="28" />
+          <span>Caregiver Connection</span>
+        </div>
+        <h2>Connect to Patient's App</h2>
+        <p class="modal-subtitle" id="pairingSubtitle">Enter the pairing code shown on your loved one's DoseFlow app. We will save it in this browser so you never have to re-enter it.</p>
+      </div>
+
+      <div class="code-instruction-box">
+        <div class="step-row">
+          <span class="step-num">1</span>
+          <span>Open <strong>DoseFlow</strong> on the patient's phone.</span>
+        </div>
+        <div class="step-row">
+          <span class="step-num">2</span>
+          <span>Look at the <strong>Code: DF-XXXX</strong> badge at the top of the screen (or in Settings).</span>
+        </div>
+        <div class="step-row">
+          <span class="step-num">3</span>
+          <span>Enter that code below to start real-time monitoring:</span>
+        </div>
+      </div>
+
+      <form id="pairingForm" class="auth-form">
+        <div class="input-group">
+          <label for="inputPairingCode">Caregiver Access Code</label>
+          <input 
+            type="text" 
+            id="inputPairingCode" 
+            name="pairingCode" 
+            placeholder="e.g. DF-7821" 
+            maxlength="10" 
+            autocomplete="off"
+            spellcheck="false"
+            required
+            autofocus
+          />
+          <span class="input-hint">No passwords needed. Live data connects automatically and stays synced.</span>
+        </div>
+
+        <div id="pairingError" class="auth-error" style="display: none;"></div>
+
+        <button type="submit" id="btnSubmitPairing" class="btn-primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <span>Connect &amp; View Live Patient Data</span>
+        </button>
+      </form>
+
+      <div style="text-align: center; margin-top: 14px;">
+        <button id="btnCancelPairing" class="btn-secondary" style="display: none;">Keep Current Patient</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Navigation Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand-group">
+        <div class="logo-mark">
+          <img src="logo.svg" alt="DoseFlow Logo" class="brand-logo-img" width="40" height="40" />
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">DoseFlow</span>
+          <span class="brand-badge-tag">Caregiver Portal</span>
+        </div>
+      </div>
+
+      <!-- Live Auto-Sync Status Indicator -->
+      <div class="live-sync-pill" id="liveSyncPill" title="Live status updates from mobile device">
+        <span class="pulse-dot"></span>
+        <span id="liveSyncStatusText">Auto-Sync Active</span>
+      </div>
+
+      <!-- Patient Information Pill -->
+      <div class="patient-pill" id="patientPill">
+        <div class="patient-avatar" id="patientAvatarDisplay">--</div>
+        <div class="patient-meta">
+          <div class="patient-name-row">
+            <span class="patient-name" id="patientNameDisplay">Connecting...</span>
+            <span class="code-pill" id="codePillDisplay">Code: --</span>
+          </div>
+          <span class="patient-device" id="patientDeviceDisplay">Device status</span>
+        </div>
+      </div>
+
+      <!-- Header Action Buttons -->
+      <div class="header-actions">
+        <button id="btnManualRefresh" class="btn-refresh" title="Check for latest updates now">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+          <span>Refresh</span>
+        </button>
+
+        <button id="btnSwitchPatient" class="btn-secondary btn-sm" title="Change or enter another pairing code">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>
+          </svg>
+          <span>Switch Code</span>
+        </button>
+
+        <div class="readonly-badge" title="Changes can only be made on the patient's phone to guarantee adherence integrity">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <span>Read-Only</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- CRITICAL FRESHNESS GUARD BANNER -->
+  <div id="freshnessBannerContainer" class="banner-wrapper">
+    <!-- Dynamically rendered: Live banner OR Stale Warning Banner -->
+  </div>
+
+  <!-- Main Dashboard Container -->
+  <main class="dashboard-main" id="dashboardMain">
+    <div class="dashboard-layout">
+
+      <!-- LEFT COLUMN: Today's Timeline Schedule -->
+      <section class="schedule-column" aria-labelledby="scheduleHeading">
+        <div class="card card-timeline">
+          <div class="card-header">
+            <div>
+              <h2 id="scheduleHeading" class="card-title">Today's Medication Schedule</h2>
+              <p class="card-subtitle" id="currentDateSubtitle">Today</p>
+            </div>
+            <div class="realtime-badge">
+              <span class="live-dot-green"></span>
+              <span>Updates automatically</span>
+            </div>
+          </div>
+
+          <div class="timeline-container" id="timelineList">
+            <!-- Rendered dynamically by app.js -->
+            <div class="timeline-loading">Connecting to patient device...</div>
+          </div>
+
+          <div class="readonly-disclaimer">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="16" x2="12" y2="12"/>
+              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            <span>
+              <strong>Real-Time Sync:</strong> As soon as doses are marked taken on the patient's phone, this screen updates automatically without needing to refresh.
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT COLUMN: Adherence Analytics & History -->
+      <aside class="analytics-column" aria-label="Adherence Statistics">
+        
+        <!-- Adherence Summary Cards -->
+        <div class="card card-analytics">
+          <h2 class="card-title">Adherence Analytics</h2>
+          <p class="card-subtitle">Calculated dynamically from synced device logs</p>
+
+          <div class="adherence-grid">
+            <!-- 7-Day Card -->
+            <div class="metric-card">
+              <div class="metric-header">
+                <span class="metric-label">7-Day Adherence</span>
+                <span class="metric-badge badge-excellent" id="sevenDayBadge">Active</span>
+              </div>
+              <div class="metric-body">
+                <div class="metric-circle" id="sevenDayGauge">
+                  <span class="metric-percent" id="sevenDayValue">100%</span>
+                </div>
+                <div class="metric-details">
+                  <div class="detail-row">
+                    <span class="dot-taken"></span>
+                    <span class="detail-label">Taken:</span>
+                    <strong id="sevenDayTaken">0</strong>
+                  </div>
+                  <div class="detail-row">
+                    <span class="dot-skipped"></span>
+                    <span class="detail-label">Skipped:</span>
+                    <strong id="sevenDaySkipped">0</strong>
+                  </div>
+                  <div class="detail-row">
+                    <span class="dot-missed"></span>
+                    <span class="detail-label">Missed:</span>
+                    <strong id="sevenDayMissed">0</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 30-Day Card -->
+            <div class="metric-card">
+              <div class="metric-header">
+                <span class="metric-label">30-Day Adherence</span>
+                <span class="metric-badge badge-good" id="thirtyDayBadge">Active</span>
+              </div>
+              <div class="metric-body">
+                <div class="metric-circle" id="thirtyDayGauge">
+                  <span class="metric-percent" id="thirtyDayValue">100%</span>
+                </div>
+                <div class="metric-details">
+                  <div class="detail-row">
+                    <span class="dot-taken"></span>
+                    <span class="detail-label">Taken:</span>
+                    <strong id="thirtyDayTaken">0</strong>
+                  </div>
+                  <div class="detail-row">
+                    <span class="dot-skipped"></span>
+                    <span class="detail-label">Skipped:</span>
+                    <strong id="thirtyDaySkipped">0</strong>
+                  </div>
+                  <div class="detail-row">
+                    <span class="dot-missed"></span>
+                    <span class="detail-label">Missed:</span>
+                    <strong id="thirtyDayMissed">0</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Historical Log & Clinical Export -->
+        <div class="card card-history">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Recent Dose Logs</h3>
+              <p class="card-subtitle">Audited timestamps from mobile app sync</p>
+            </div>
+            <button id="btnExportCsv" class="btn-secondary btn-sm" title="Export adherence history for physician">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+              </svg>
+              <span>Export CSV</span>
+            </button>
+          </div>
+
+          <div class="history-table-wrapper">
+            <table class="history-table" id="historyTable">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Medication</th>
+                  <th>Scheduled</th>
+                  <th>Recorded</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="historyTableBody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </aside>
+
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <div class="footer-container">
+      <span>DoseFlow Caregiver Portal • Zero-Delay Real-Time Adherence Engine</span>
+      <span class="footer-sync-time" id="footerSyncStatus">Connecting...</span>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

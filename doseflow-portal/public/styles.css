@@ -881,3 +881,192 @@ button, input, select, textarea {
     display: none;
   }
 }
+
+/* ======================== TOAST NOTIFICATIONS ======================== */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast-item {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #004F4F;
+  color: #FFFFFF;
+  padding: 14px 20px;
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  min-width: 280px;
+  max-width: 420px;
+  animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.toast-fade-out {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.toast-icon {
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.toast-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.toast-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.toast-desc {
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+/* ======================== LIVE SYNC PILL ======================== */
+.live-sync-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #E8F5E9;
+  color: #1B5E20;
+  border: 1px solid #A3D9AC;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  background: #2E7D32;
+  border-radius: 50%;
+  box-shadow: 0 0 0 rgba(46, 125, 50, 0.4);
+  animation: pulseGreen 1.8s infinite;
+}
+
+@keyframes pulseGreen {
+  0% {
+    box-shadow: 0 0 0 0 rgba(46, 125, 50, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(46, 125, 50, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(46, 125, 50, 0);
+  }
+}
+
+.live-sync-pill.status-syncing {
+  background: #E3F2FD;
+  color: #1565C0;
+  border-color: #90CAF9;
+}
+
+.live-sync-pill.status-syncing .pulse-dot {
+  background: #1976D2;
+  animation: pulseBlue 1.8s infinite;
+}
+
+@keyframes pulseBlue {
+  0% {
+    box-shadow: 0 0 0 0 rgba(25, 118, 210, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(25, 118, 210, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(25, 118, 210, 0);
+  }
+}
+
+/* ======================== CODE PILL & STEP ROWS ======================== */
+.patient-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.code-pill {
+  display: inline-block;
+  background: #E0F2FE;
+  color: #0369A1;
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  letter-spacing: 0.5px;
+}
+
+.step-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.step-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: var(--primary-600);
+  color: #FFFFFF;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.realtime-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: #047857;
+  font-weight: 600;
+}
+
+.live-dot-green {
+  width: 7px;
+  height: 7px;
+  background: #10B981;
+  border-radius: 50%;
+  animation: pulseGreen 2s infinite;
+}
+

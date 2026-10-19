@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DoseFlow — Caregiver Adherence Portal</title>
-  <meta name="description" content="Read-only remote caregiver portal for DoseFlow medication adherence and schedule monitoring with strict freshness guard.">
+  <meta name="description" content="Read-only remote caregiver portal for DoseFlow medication adherence and schedule monitoring with automatic real-time sync.">
   <link rel="icon" type="image/svg+xml" href="logo.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,71 +13,36 @@
 </head>
 <body>
 
-  <!-- STEP 1: Caregiver Email Login Modal -->
-  <div class="modal-backdrop" id="authModal" style="display: none;">
-    <div class="modal-card">
-      <div class="modal-header">
-        <div class="brand-badge">
-          <img src="logo.svg" alt="DoseFlow Logo" class="brand-badge-img" width="26" height="26" />
-          <span>DoseFlow</span>
-        </div>
-        <h2>Caregiver Portal Sign-In</h2>
-        <p class="modal-subtitle">Sign in with your email to monitor loved ones' medication adherence.</p>
-      </div>
-      <form id="authForm" class="auth-form">
-        <div class="input-group">
-          <label for="inputEmail">Caregiver Email Address</label>
-          <input 
-            type="email" 
-            id="inputEmail" 
-            name="email" 
-            placeholder="caregiver@example.com" 
-            autocomplete="email"
-            spellcheck="false"
-            required
-          />
-        </div>
-        <div class="input-group">
-          <label for="inputPassword">Password</label>
-          <input 
-            type="password" 
-            id="inputPassword" 
-            name="password" 
-            placeholder="••••••••" 
-            autocomplete="current-password"
-            required
-          />
-          <span class="input-hint">New caregiver? Entering an email automatically creates your secure account.</span>
-        </div>
-        <div id="authError" class="auth-error" style="display: none;"></div>
-        <button type="submit" id="btnSubmitAuth" class="btn-primary">
-          Sign In / Continue
-        </button>
-      </form>
-    </div>
-  </div>
+  <!-- Toast Notification Container for Real-Time Dose Confirmations -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
-  <!-- STEP 2: Link Patient via App Pairing Code Modal -->
+  <!-- PATIENT PAIRING MODAL (Shown only once when no code is stored) -->
   <div class="modal-backdrop" id="pairingModal" style="display: none;">
     <div class="modal-card">
       <div class="modal-header">
         <div class="brand-badge brand-blue">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-            <line x1="12" y1="18" x2="12.01" y2="18"/>
-          </svg>
-          <span>Connect Patient</span>
+          <img src="logo.svg" alt="DoseFlow Logo" class="brand-badge-img" width="28" height="28" />
+          <span>Caregiver Connection</span>
         </div>
-        <h2>Enter Code from Mobile App</h2>
-        <p class="modal-subtitle" id="pairingSubtitle">Link to your patient's device using the code generated in the app.</p>
+        <h2>Connect to Patient's App</h2>
+        <p class="modal-subtitle" id="pairingSubtitle">Enter the pairing code shown on your loved one's DoseFlow app. We will save it in this browser so you never have to re-enter it.</p>
       </div>
+
       <div class="code-instruction-box">
-        <ol>
-          <li>Open <strong>DoseFlow</strong> on the patient's phone.</li>
-          <li>Go to <strong>Settings</strong> &rarr; <strong>Caregiver Remote Monitoring</strong>.</li>
-          <li>Enter the 6-character Caregiver Access Code displayed on the phone:</li>
-        </ol>
+        <div class="step-row">
+          <span class="step-num">1</span>
+          <span>Open <strong>DoseFlow</strong> on the patient's phone.</span>
+        </div>
+        <div class="step-row">
+          <span class="step-num">2</span>
+          <span>Look at the <strong>Code: DF-XXXX</strong> badge at the top of the screen (or in Settings).</span>
+        </div>
+        <div class="step-row">
+          <span class="step-num">3</span>
+          <span>Enter that code below to start real-time monitoring:</span>
+        </div>
       </div>
+
       <form id="pairingForm" class="auth-form">
         <div class="input-group">
           <label for="inputPairingCode">Caregiver Access Code</label>
@@ -86,20 +51,27 @@
             id="inputPairingCode" 
             name="pairingCode" 
             placeholder="e.g. DF-7821" 
-            maxlength="8" 
+            maxlength="10" 
             autocomplete="off"
             spellcheck="false"
             required
+            autofocus
           />
-          <span class="input-hint">As soon as the codes match, the patient's live medications and status appear immediately worldwide.</span>
+          <span class="input-hint">No passwords needed. Live data connects automatically and stays synced.</span>
         </div>
+
         <div id="pairingError" class="auth-error" style="display: none;"></div>
+
         <button type="submit" id="btnSubmitPairing" class="btn-primary">
-          Match Code &amp; View Patient Data
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <span>Connect &amp; View Live Patient Data</span>
         </button>
       </form>
-      <div style="text-align: center; margin-top: 12px;">
-        <button id="btnCancelPairing" class="btn-secondary" style="display: none;">Cancel</button>
+
+      <div style="text-align: center; margin-top: 14px;">
+        <button id="btnCancelPairing" class="btn-secondary" style="display: none;">Keep Current Patient</button>
       </div>
     </div>
   </div>
@@ -117,44 +89,47 @@
         </div>
       </div>
 
+      <!-- Live Auto-Sync Status Indicator -->
+      <div class="live-sync-pill" id="liveSyncPill" title="Live status updates from mobile device">
+        <span class="pulse-dot"></span>
+        <span id="liveSyncStatusText">Auto-Sync Active</span>
+      </div>
+
+      <!-- Patient Information Pill -->
       <div class="patient-pill" id="patientPill">
         <div class="patient-avatar" id="patientAvatarDisplay">--</div>
         <div class="patient-meta">
-          <span class="patient-name" id="patientNameDisplay">Loading...</span>
+          <div class="patient-name-row">
+            <span class="patient-name" id="patientNameDisplay">Connecting...</span>
+            <span class="code-pill" id="codePillDisplay">Code: --</span>
+          </div>
           <span class="patient-device" id="patientDeviceDisplay">Device status</span>
         </div>
       </div>
 
+      <!-- Header Action Buttons -->
       <div class="header-actions">
-        <div class="caregiver-pill" id="caregiverPill" title="Logged in Caregiver">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-            <circle cx="12" cy="7" r="4"/>
+        <button id="btnManualRefresh" class="btn-refresh" title="Check for latest updates now">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
           </svg>
-          <span id="caregiverEmailDisplay">caregiver@example.com</span>
-        </div>
+          <span>Refresh</span>
+        </button>
 
-        <button id="btnSwitchPatient" class="btn-secondary btn-sm" title="Link or switch patient using a code from app">
+        <button id="btnSwitchPatient" class="btn-secondary btn-sm" title="Change or enter another pairing code">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>
           </svg>
           <span>Switch Code</span>
         </button>
 
-        <div class="readonly-badge" title="Changes can only be made on patient's primary device">
+        <div class="readonly-badge" title="Changes can only be made on the patient's phone to guarantee adherence integrity">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
             <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
           </svg>
-          <span>Read-Only View</span>
+          <span>Read-Only</span>
         </div>
-
-        <button id="btnSignOut" class="btn-icon" title="Sign out of caregiver portal">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>
-          </svg>
-          <span class="hide-mobile">Sign Out</span>
-        </button>
       </div>
     </div>
   </header>
@@ -173,20 +148,18 @@
         <div class="card card-timeline">
           <div class="card-header">
             <div>
-              <h2 id="scheduleHeading" class="card-title">Today's Schedule</h2>
+              <h2 id="scheduleHeading" class="card-title">Today's Medication Schedule</h2>
               <p class="card-subtitle" id="currentDateSubtitle">Today</p>
             </div>
-            <button id="btnManualRefresh" class="btn-refresh" title="Check for device updates">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-              </svg>
-              <span>Refresh</span>
-            </button>
+            <div class="realtime-badge">
+              <span class="live-dot-green"></span>
+              <span>Updates automatically</span>
+            </div>
           </div>
 
           <div class="timeline-container" id="timelineList">
             <!-- Rendered dynamically by app.js -->
-            <div class="timeline-loading">Loading schedule...</div>
+            <div class="timeline-loading">Connecting to patient device...</div>
           </div>
 
           <div class="readonly-disclaimer">
@@ -196,7 +169,7 @@
               <line x1="12" y1="8" x2="12.01" y2="8"/>
             </svg>
             <span>
-              <strong>Caregiver Integrity Notice:</strong> All doses are confirmed and managed exclusively via the patient's mobile phone. Remote schedule mutations are disabled to guarantee 100% offline accuracy.
+              <strong>Real-Time Sync:</strong> As soon as doses are marked taken on the patient's phone, this screen updates automatically without needing to refresh.
             </span>
           </div>
         </div>
@@ -313,8 +286,8 @@
 
   <footer class="app-footer">
     <div class="footer-container">
-      <span>DoseFlow Caregiver Portal v2.0 • Strict Zero-Trust Freshness Protocol Active</span>
-      <span class="footer-sync-time" id="footerSyncStatus">Last checked: Just now</span>
+      <span>DoseFlow Caregiver Portal • Zero-Delay Real-Time Adherence Engine</span>
+      <span class="footer-sync-time" id="footerSyncStatus">Connecting...</span>
     </div>
   </footer>
 

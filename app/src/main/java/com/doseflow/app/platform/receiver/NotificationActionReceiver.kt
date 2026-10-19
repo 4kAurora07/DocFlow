@@ -33,6 +33,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
                     ACTION_SNOOZE -> handleSnooze(context, db, alarmScheduler, occurrenceId)
                     else -> Log.w(TAG, "Unknown notification action: $action")
                 }
+                try {
+                    com.doseflow.app.data.DoseFlowRepository(context).syncFullStateToCaregiverPortal()
+                } catch (_: Exception) {}
             } catch (e: Exception) {
                 Log.e(TAG, "Error handling notification action $action: ${e.message}", e)
             } finally {

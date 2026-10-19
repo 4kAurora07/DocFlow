@@ -12,6 +12,11 @@ app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Health check endpoint for uptime monitoring & keepalive pings
+app.get(['/health', '/api/health', '/ping'], (req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
+
 // Server-side Hashing helper
 function hashAccessCode(code) {
   return storage.hashAccessCode(code);

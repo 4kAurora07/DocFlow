@@ -17,13 +17,14 @@ data class TimelineUiState(
     val hasExactAlarmPermission: Boolean = true,
     val hasNotificationPermission: Boolean = true,
     val isIgnoringBatteryOptimizations: Boolean = true,
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val caregiverCode: String? = null
 )
 
 class TimelineViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = DoseFlowRepository(application)
-    private val _uiState = MutableStateFlow(TimelineUiState())
+    private val _uiState = MutableStateFlow(TimelineUiState(caregiverCode = repository.getCaregiverCode()))
     val uiState: StateFlow<TimelineUiState> = _uiState.asStateFlow()
 
     init {
@@ -31,7 +32,9 @@ class TimelineViewModel(application: Application) : AndroidViewModel(application
         observeDoses()
         viewModelScope.launch {
             try {
-                repository.ensureCaregiverCodeAndSync()
+                val code = repository.ensureCaregiverCodeAndSync()
+                val activeCode = code ?: repository.getCaregiverCode()
+                _uiState.update { it.copy(caregiverCode = activeCode) }
             } catch (_: Exception) {}
         }
     }
@@ -76,6 +79,18 @@ class TimelineViewModel(application: Application) : AndroidViewModel(application
     fun snooze(occurrenceId: String) {
         viewModelScope.launch {
             repository.snoozeDose(occurrenceId)
+        }
+    }
+
+    fun triggerAutoSync() {
+        viewModelScope.launch {
+            try {
+                val code = repository.getCaregiverCode()
+                if (code != null) {
+                    _uiState.update { it.copy(caregiverCode = code) }
+                }
+                repository.syncFullStateToCaregiverPortal()
+            } catch (_: Exception) {}
         }
     }
 }

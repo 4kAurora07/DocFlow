@@ -86,10 +86,15 @@ object NotificationHelper {
 
         val notificationId = occurrenceId.hashCode()
 
-        // Content intent (opens app to home)
-        val contentIntent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            putExtra("EXTRA_OCCURRENCE_ID", occurrenceId)
+        // Content intent: Tapping notification opens the high-contrast Dose Reminder Popup directly
+        val contentIntent = Intent(context, com.doseflow.app.ui.popup.DoseReminderPopupActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(com.doseflow.app.ui.popup.DoseReminderPopupActivity.EXTRA_OCCURRENCE_ID, occurrenceId)
+            putExtra(com.doseflow.app.ui.popup.DoseReminderPopupActivity.EXTRA_MEDICINE_NAME, medicineName)
+            putExtra(com.doseflow.app.ui.popup.DoseReminderPopupActivity.EXTRA_DOSAGE, dosage)
+            putExtra(com.doseflow.app.ui.popup.DoseReminderPopupActivity.EXTRA_UNIT, unit)
+            putExtra(com.doseflow.app.ui.popup.DoseReminderPopupActivity.EXTRA_INSTRUCTIONS, instructions)
+            putExtra(com.doseflow.app.ui.popup.DoseReminderPopupActivity.EXTRA_SCHEDULED_TIME, scheduledEpochMillis)
         }
         val contentPendingIntent = PendingIntent.getActivity(
             context,
@@ -176,6 +181,14 @@ object NotificationHelper {
             .apply {
                 if (appLogoBitmap != null) {
                     setLargeIcon(appLogoBitmap)
+                }
+                val isPopupEnabled = try {
+                    com.doseflow.app.data.DoseFlowRepository(context).isHomeScreenPopupEnabled()
+                } catch (_: Exception) {
+                    true
+                }
+                if (isPopupEnabled && System.currentTimeMillis() >= scheduledEpochMillis) {
+                    setFullScreenIntent(fullScreenPendingIntent, true)
                 }
             }
             .setColor(0xFF2B5B84.toInt())

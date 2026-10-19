@@ -20,12 +20,10 @@ data class OemAdvice(
 data class AppPermissionStatus(
     val canScheduleExactAlarms: Boolean,
     val areNotificationsEnabled: Boolean,
-    val isIgnoringBatteryOptimizations: Boolean,
-    val canDrawOverlays: Boolean = true
+    val isIgnoringBatteryOptimizations: Boolean
 ) {
     val hasExactAlarmIssue: Boolean get() = !canScheduleExactAlarms
     val hasNotificationIssue: Boolean get() = !areNotificationsEnabled
-    val hasOverlayIssue: Boolean get() = !canDrawOverlays
     val isFullyConfigured: Boolean get() = canScheduleExactAlarms && areNotificationsEnabled
 }
 
@@ -34,8 +32,7 @@ object PowerAndPermissionHelper {
     fun checkCurrentPermissions(context: Context): AppPermissionStatus = AppPermissionStatus(
         canScheduleExactAlarms = canScheduleExactAlarms(context),
         areNotificationsEnabled = areNotificationsEnabled(context),
-        isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations(context),
-        canDrawOverlays = canDrawOverlays(context)
+        isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations(context)
     )
 
     fun canScheduleExactAlarms(context: Context): Boolean {

@@ -177,7 +177,7 @@ object NotificationHelper {
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_DOSES_HIGH)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.drawable.ic_stat_doseflow)
             .apply {
                 if (appLogoBitmap != null) {
                     setLargeIcon(appLogoBitmap)
@@ -205,7 +205,7 @@ object NotificationHelper {
             .setContentIntent(contentPendingIntent)
             .addAction(
                 NotificationCompat.Action.Builder(
-                    R.drawable.ic_notification,
+                    R.drawable.ic_stat_doseflow,
                     "✓ I TOOK IT",
                     takenPendingIntent
                 ).build()

@@ -12,7 +12,7 @@
   <a href="#-key-features"><img src="https://img.shields.io/badge/Platform-Android%2014+-006A6A?style=for-the-badge&logo=android&logoColor=white" alt="Platform" /></a>
   <a href="#-architecture"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose-008988?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Compose" /></a>
   <a href="https://4kaurora07.github.io/DocFlow/"><img src="https://img.shields.io/badge/Live%20Dashboard-GitHub%20Pages-10B981?style=for-the-badge&logo=github&logoColor=white" alt="Live Dashboard" /></a>
-  <a href="#-zero-trust-freshness-guard"><img src="https://img.shields.io/badge/Sync-Zero--Trust%20Freshness-0284C7?style=for-the-badge&logo=databricks&logoColor=white" alt="Freshness Guard" /></a>
+  <a href="DOCUMENTATION.md"><img src="https://img.shields.io/badge/Docs-Technical%20Spec-8B5CF6?style=for-the-badge&logo=googledocs&logoColor=white" alt="Documentation" /></a>
   <a href="#-quick-start"><img src="https://img.shields.io/badge/Build-1--Command%20APK-10B981?style=for-the-badge&logo=gradle&logoColor=white" alt="APK Build" /></a>
 </p>
 

@@ -11,6 +11,7 @@
 <p align="center">
   <a href="#-key-features"><img src="https://img.shields.io/badge/Platform-Android%2014+-006A6A?style=for-the-badge&logo=android&logoColor=white" alt="Platform" /></a>
   <a href="#-architecture"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose-008988?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Compose" /></a>
+  <a href="https://4kaurora07.github.io/DocFlow/"><img src="https://img.shields.io/badge/Live%20Dashboard-GitHub%20Pages-10B981?style=for-the-badge&logo=github&logoColor=white" alt="Live Dashboard" /></a>
   <a href="#-zero-trust-freshness-guard"><img src="https://img.shields.io/badge/Sync-Zero--Trust%20Freshness-0284C7?style=for-the-badge&logo=databricks&logoColor=white" alt="Freshness Guard" /></a>
   <a href="#-quick-start"><img src="https://img.shields.io/badge/Build-1--Command%20APK-10B981?style=for-the-badge&logo=gradle&logoColor=white" alt="APK Build" /></a>
 </p>
@@ -31,6 +32,7 @@ Built as a native Android application paired with a modern real-time caregiver w
  │  • Local Room SQLite     │ ───────────────────> │  • 7 & 30-Day Adherence      │
  │  • Exact Alarms Engine   │   Outbox Sync Hub    │  • Clinical CSV Export       │
  │  • Zero-Network Core     │                      │  • Strict Freshness Guard    │
+ │  • Senior Reminder Popup │                      │  • Live GitHub Pages Demo    │
  └──────────────────────────┘                      └──────────────────────────────┘
 ```
 
@@ -40,13 +42,24 @@ Built as a native Android application paired with a modern real-time caregiver w
 
 ### 📱 Patient Mobile Experience (Android Native)
 * **100% Offline Resilience:** Dose schedules, occurrence calculations, and dose confirmation records live in local Room SQLite. No network required to trigger alarms or record doses.
-* **Exact Alarm Guarantee:** Uses `AlarmManager.setExactAndAllowWhileIdle` to bypass Android Doze Mode and background execution limits.
+* **Exact Alarm Guarantee:** Uses `AlarmManager.setExactAndAllowWhileIdle` with chained scheduling to bypass Android Doze Mode and background execution limits.
+* **Senior-Friendly Home Screen Popup:**
+  * Displays a prominent, high-contrast modal directly in front of the phone's Home Screen when a scheduled dose time has passed.
+  * Oversized touch targets (`✓ I TOOK THIS MEDICINE`, `⏰ SNOOZE 10M`, `✕ SKIP DOSE`) tailored for seniors and motor-impaired individuals.
+  * **Strict Lock Screen Privacy:** Automatically suppressed when the device is locked to protect sensitive health data from passersby.
+  * **Instant Post-Unlock Delivery:** If a dose is due while locked, the popup surfaces the exact millisecond the user unlocks their phone (`ACTION_USER_PRESENT`).
+  * **Zero Complex Settings:** No dangerous or confusing `SYSTEM_ALERT_WINDOW` ("Display over other apps") permissions required—works out of the box on Android 10 through 15 and OEM skins (MIUI, HyperOS, OneUI).
+  * Fully customizable with a user toggle in **Settings**.
+* **Compliant Android Notification Architecture:**
+  * Uses a clean, pure white flat vector icon (`ic_stat_doseflow.xml`) on transparent alpha paths, eliminating fallback to default Android robot icons on Xiaomi/MIUI and custom OEM notification shades.
+  * High-priority Heads-Up Notification channel (`CHANNEL_DOSES_HIGH`) with single-tap quick action buttons (`✓ I TOOK IT`, `⏰ SNOOZE 10M`, `✕ SKIP DOSE`).
+  * Tapping the notification opens the full reminder popup immediately.
 * **Smart Reconciliation:** Idempotently handles DST shifts, timezone travels, phone reboots (`BOOT_COMPLETED`), and system time adjustments without duplicate alarms.
-* **Actionable Notification Actions:** Single-tap `Take`, `Skip`, or `Snooze (+10m)` directly from the lock screen.
 * **Auto-Escalation Engine:** Automatically escalates neglected doses at +15 minutes and transitions unacknowledged doses to missed at +45 minutes.
 
 ### 🌐 Remote Caregiver Portal (Web App)
 * **Zero-Trust Freshness Guard:** If a patient's mobile phone goes offline for >15 minutes, unconfirmed doses are instantly labeled **"Awaiting Sync"** rather than assumed taken.
+* **Live GitHub Pages Dashboard:** View the caregiver dashboard online at **[https://4kaurora07.github.io/DocFlow/](https://4kaurora07.github.io/DocFlow/)**.
 * **Instant Pairing:** Patient taps *Share Caregiver Code* on phone &rarr; Caregiver enters 6-character code &rarr; Connected immediately worldwide.
 * **Adherence Gauges:** Dynamic 7-day and 30-day compliance tracking calculated straight from cryptographic event logs.
 * **Physician Export:** One-click CSV export ready for medical appointments and clinical audits.
@@ -60,14 +73,20 @@ flowchart TD
     subgraph MobileApp["📱 DoseFlow Android App"]
         direction TB
         UI["Jetpack Compose UI\n(Timeline, Meds, Adherence)"]
+        Popup["DoseReminderPopupActivity\n(Home Screen Overlay for Seniors)"]
         VM["Architecture ViewModels\n(MVI / StateFlow)"]
         Room[("Room SQLite DB\nSchedules • Doses • Outbox")]
         Scheduler["AlarmScheduler\n(Exact Alarms & Reconciler)"]
+        UnlockReceiver["BootAndReconcileReceiver\n(BOOT, TIME_SET, USER_PRESENT)"]
+        NotificationHelper["NotificationHelper\n(Flat Vector ic_stat_doseflow)"]
         Engine["OutboxSyncEngine\n(Exponential Backoff & Jitter)"]
 
         UI --> VM
         VM --> Room
         Scheduler --> Room
+        UnlockReceiver --> Popup
+        Scheduler --> NotificationHelper
+        NotificationHelper --> Popup
         Room --> Engine
     end
 
@@ -76,7 +95,7 @@ flowchart TD
         API["Node / Express API Server"]
         SqliteDB[("Encrypted SQLite Registry\nCaregivers • Patients • Sessions")]
         Guard["Freshness Guard Engine\n(15-min Staleness Window)"]
-        WebUI["Caregiver Web Dashboard\n(Responsive Live SPA)"]
+        WebUI["Caregiver Web Dashboard\n(Responsive Live SPA • GitHub Pages)"]
 
         API --> SqliteDB
         API --> Guard
@@ -112,7 +131,7 @@ Medical monitoring applications often dangerously display old data as if everyth
 * **Node.js 18+**
 
 ### 1. Build the Android App
-You can build the APK directly with a single command:
+Build the APK directly with a single command:
 
 ```bash
 # Build debug APK with instant console feedback
@@ -127,7 +146,7 @@ The resulting binary will be ready at:
 # Start the web portal server
 npm run portal
 ```
-Open **[http://localhost:3000](http://localhost:3000)** in your browser to access the caregiver dashboard.
+Open **[http://localhost:3000](http://localhost:3000)** in your browser to access the local caregiver dashboard. Alternatively, access the online version at **[https://4kaurora07.github.io/DocFlow/](https://4kaurora07.github.io/DocFlow/)**.
 
 ---
 
@@ -150,6 +169,7 @@ cd doseflow-portal && npm test
 
 ## 🔒 Security & Privacy
 
+* **Lock Screen Medical Privacy:** Dose popups are intentionally silenced from appearing on lock screens, preventing accidental exposure of sensitive prescription names to coworkers or bystanders.
 * **Hashed Code Registry:** Access codes generated on the patient's device are hashed server-side with HMAC-SHA256. Plaintext access codes are never stored as primary registry keys.
 * **Read-Only Remote Model:** Caregivers have strict read-only observation rights. Dose alterations and schedule changes can **only** be executed physically on the patient's primary device.
 * **Zero Bloat:** Completely clean of tracking pixels, advertising SDKs, and third-party analytics.
@@ -162,7 +182,12 @@ cd doseflow-portal && npm test
 DoseFlow/
 ├── app/                        # Android Native Application
 │   ├── src/main/java/          # Jetpack Compose UI, Room DB, Alarm Scheduler
-│   ├── src/main/res/           # Material themes, vector drawable assets, icons
+│   │   └── com/doseflow/app/
+│   │       ├── data/           # Repositories, Room SQLite entities & DAOs
+│   │       ├── domain/         # Reconciler, Occurrence Calculator, Models
+│   │       ├── platform/       # AlarmScheduler, NotificationHelper, Receivers
+│   │       └── ui/             # Compose screens & DoseReminderPopupActivity
+│   ├── src/main/res/           # Material themes, vector drawables (ic_stat_doseflow.xml)
 │   └── src/test/               # Exhaustive unit test suite (Alarm, Zone, Sync)
 ├── doseflow-portal/            # Caregiver Remote Dashboard & Sync Backend
 │   ├── data/                   # SQLite database directory (clean, zero demo rows)

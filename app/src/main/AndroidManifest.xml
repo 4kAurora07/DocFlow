@@ -29,13 +29,13 @@
             </intent-filter>
         </activity>
 
-        <!-- Home Screen / Lock Screen Alarm Dialog Popup -->
+        <!-- Home Screen Alarm Dialog Popup (Never shown on lock screen for privacy; shows immediately when unlocked) -->
         <activity
             android:name=".ui.popup.DoseReminderPopupActivity"
             android:theme="@style/Theme.DoseFlow.Translucent"
             android:exported="false"
-            android:showWhenLocked="true"
-            android:turnScreenOn="true"
+            android:showWhenLocked="false"
+            android:turnScreenOn="false"
             android:excludeFromRecents="true"
             android:launchMode="singleTop" />
 

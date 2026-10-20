@@ -98,26 +98,31 @@ class BootAndReconcileReceiver : BroadcastReceiver() {
             val repository = DoseFlowRepository(context)
             if (!repository.isHomeScreenPopupEnabled()) return
 
+            // Brief pause for the unlock transition to finish and reveal the Home Screen
+            kotlinx.coroutines.delay(350)
+
             val db = AppDatabase.getInstance(context)
             val now = System.currentTimeMillis()
             val occurrences = db.doseOccurrenceDao().getAllOccurrences()
             val overdueDose = occurrences.firstOrNull { occ ->
                 (occ.status == DoseStatus.PENDING.name || occ.status == DoseStatus.SNOOZED.name) &&
                 now >= occ.scheduledEpochMillis &&
-                (now - occ.scheduledEpochMillis) < 3 * 60 * 60 * 1000L // within 3 hours grace window
+                (now - occ.scheduledEpochMillis) < 6 * 60 * 60 * 1000L // within 6 hours grace window
             }
 
             if (overdueDose != null) {
                 val med = db.medicineDao().getMedicineById(overdueDose.medicineId)
-                com.doseflow.app.ui.popup.DoseReminderPopupActivity.launch(
-                    context = context,
-                    occurrenceId = overdueDose.id,
-                    medicineName = med?.name ?: "Medicine",
-                    dosage = med?.dosage ?: "",
-                    unit = med?.unit ?: "",
-                    instructions = med?.instructions ?: "",
-                    scheduledEpochMillis = overdueDose.scheduledEpochMillis
-                )
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    com.doseflow.app.ui.popup.DoseReminderPopupActivity.launch(
+                        context = context,
+                        occurrenceId = overdueDose.id,
+                        medicineName = med?.name ?: "Medicine",
+                        dosage = med?.dosage ?: "",
+                        unit = med?.unit ?: "",
+                        instructions = med?.instructions ?: "",
+                        scheduledEpochMillis = overdueDose.scheduledEpochMillis
+                    )
+                }
             }
         }
     }

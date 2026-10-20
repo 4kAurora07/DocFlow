@@ -93,8 +93,8 @@ class AlarmReceiver : BroadcastReceiver() {
             isEscalation = false
         )
 
-        // Launch home screen popup if scheduled time has arrived or passed and feature is enabled
-        if (System.currentTimeMillis() >= occurrence.scheduledEpochMillis && DoseFlowRepository(context).isHomeScreenPopupEnabled()) {
+        // Launch home screen popup only if phone is NOT locked (if locked, it shows as soon as unlocked)
+        if (!isKeyguardLocked(context) && System.currentTimeMillis() >= occurrence.scheduledEpochMillis && DoseFlowRepository(context).isHomeScreenPopupEnabled()) {
             com.doseflow.app.ui.popup.DoseReminderPopupActivity.launch(
                 context = context,
                 occurrenceId = occurrenceId,
@@ -145,8 +145,8 @@ class AlarmReceiver : BroadcastReceiver() {
             isEscalation = true
         )
 
-        // Launch home screen popup if scheduled time has arrived or passed and feature is enabled
-        if (System.currentTimeMillis() >= occurrence.scheduledEpochMillis && DoseFlowRepository(context).isHomeScreenPopupEnabled()) {
+        // Launch home screen popup only if phone is NOT locked (if locked, it shows as soon as unlocked)
+        if (!isKeyguardLocked(context) && System.currentTimeMillis() >= occurrence.scheduledEpochMillis && DoseFlowRepository(context).isHomeScreenPopupEnabled()) {
             com.doseflow.app.ui.popup.DoseReminderPopupActivity.launch(
                 context = context,
                 occurrenceId = occurrenceId,
@@ -231,8 +231,8 @@ class AlarmReceiver : BroadcastReceiver() {
             isEscalation = false
         )
 
-        // Launch home screen popup if scheduled time has arrived or passed and feature is enabled
-        if (System.currentTimeMillis() >= occurrence.scheduledEpochMillis && DoseFlowRepository(context).isHomeScreenPopupEnabled()) {
+        // Launch home screen popup only if phone is NOT locked (if locked, it shows as soon as unlocked)
+        if (!isKeyguardLocked(context) && System.currentTimeMillis() >= occurrence.scheduledEpochMillis && DoseFlowRepository(context).isHomeScreenPopupEnabled()) {
             com.doseflow.app.ui.popup.DoseReminderPopupActivity.launch(
                 context = context,
                 occurrenceId = occurrenceId,
@@ -247,6 +247,11 @@ class AlarmReceiver : BroadcastReceiver() {
         // Schedule escalation in 15 minutes
         val escalationTime = Instant.now().plus(DEFAULT_ESCALATION_DELAY).toEpochMilli()
         alarmScheduler.scheduleEscalationAlarm(escalationTime, occurrenceId)
+    }
+
+    private fun isKeyguardLocked(context: Context): Boolean {
+        val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
+        return keyguardManager?.isKeyguardLocked == true
     }
 
     companion object {

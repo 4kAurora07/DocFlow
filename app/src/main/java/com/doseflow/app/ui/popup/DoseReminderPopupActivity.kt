@@ -158,17 +158,13 @@ class DoseReminderPopupActivity : ComponentActivity() {
 
     private fun setupScreenWakeAndLockFlags() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(true)
-            setTurnScreenOn(true)
-            val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
-            keyguardManager?.requestDismissKeyguard(this, null)
+            setShowWhenLocked(false)
+            setTurnScreenOn(false)
         } else {
             @Suppress("DEPRECATION")
-            window.addFlags(
+            window.clearFlags(
                 WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-                WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
             )
         }
     }
@@ -208,12 +204,45 @@ class DoseReminderPopupActivity : ComponentActivity() {
                 putExtra(EXTRA_SCHEDULED_TIME, scheduledEpochMillis)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                         Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
             }
+
+            val optionsBundle = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                android.app.ActivityOptions.makeBasic().apply {
+                    setPendingIntentBackgroundActivityStartMode(
+                        android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                    )
+                }.toBundle()
+            } else {
+                null
+            }
+
+            val pendingIntent = android.app.PendingIntent.getActivity(
+                context,
+                occurrenceId.hashCode(),
+                intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE,
+                optionsBundle
+            )
+
             try {
-                context.startActivity(intent)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && optionsBundle != null) {
+                    pendingIntent.send(context, 0, null, null, null, null, optionsBundle)
+                } else {
+                    pendingIntent.send()
+                }
             } catch (e: Exception) {
-                Log.e(TAG, "Could not launch DoseReminderPopupActivity: ${e.message}", e)
+                Log.w(TAG, "PendingIntent launch failed, attempting direct startActivity: ${e.message}")
+                try {
+                    if (optionsBundle != null) {
+                        context.startActivity(intent, optionsBundle)
+                    } else {
+                        context.startActivity(intent)
+                    }
+                } catch (e2: Exception) {
+                    Log.e(TAG, "Could not launch DoseReminderPopupActivity: ${e2.message}", e2)
+                }
             }
         }
     }

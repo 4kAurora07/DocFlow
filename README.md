@@ -59,7 +59,7 @@ Built as a native Android application paired with a modern real-time caregiver w
 
 ### 🌐 Remote Caregiver Portal (Web App)
 * **Zero-Trust Freshness Guard:** If a patient's mobile phone goes offline for >15 minutes, unconfirmed doses are instantly labeled **"Awaiting Sync"** rather than assumed taken.
-* **Live GitHub Pages Dashboard:** View the caregiver dashboard online at **[https://4kaurora07.github.io/DocFlow/](https://4kaurora07.github.io/DocFlow/)**.
+* **Live GitHub Pages Dashboard:** View the caregiver dashboard online at **[https://4kaurora07.github.io/DoseFlow/](https://4kaurora07.github.io/DoseFlow/)**.
 * **Instant Pairing:** Patient taps *Share Caregiver Code* on phone &rarr; Caregiver enters 6-character code &rarr; Connected immediately worldwide.
 * **Adherence Gauges:** Dynamic 7-day and 30-day compliance tracking calculated straight from cryptographic event logs.
 * **Physician Export:** One-click CSV export ready for medical appointments and clinical audits.
